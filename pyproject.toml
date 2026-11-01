@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neural-math-lab"
+version = "0.1.0"
+description = "Learn a tiny neural network through explicit NumPy mathematics, gradient checks, and local reports."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{name = "Tarun Tej"}]
+dependencies = ["numpy>=1.26,<3", "matplotlib>=3.7,<4"]
+
+[project.scripts]
+neural-math-lab = "neural_math_lab.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["neural_math_lab*"]
