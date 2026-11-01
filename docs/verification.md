@@ -31,7 +31,7 @@ During visual-report testing, this Mac's NumPy/Apple Accelerate combination emit
 
 ## Continuous checks
 
-`.github/workflows/tests.yml` runs the suite plus training, gradient checking, and explanation on Linux with Python 3.9 and 3.12, and macOS with Python 3.12. Consult the workflow run for the exact commit's status; this document records the local checks above rather than assuming remote jobs passed.
+`.github/workflows/tests.yml` runs the suite plus training, gradient checking, and explanation on Ubuntu 24.04 with Python 3.9, current Ubuntu with Python 3.12, and macOS with Python 3.12. The compatibility job is pinned because GitHub's Python distribution manifest does not provide Python 3.9 for Ubuntu 26.04. Consult the workflow run for the exact commit's status; this document records the local checks above rather than assuming remote jobs passed.
 
 The lab does not require network access after dependencies are installed, does not collect telemetry, and does not create a public service. The HTML report embeds both figures and has no external scripts or remote assets.
 
