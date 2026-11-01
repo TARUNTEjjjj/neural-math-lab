@@ -1,101 +1,159 @@
 # Neural Math Lab
 
-A small neural network you can understand line by line. Learn XOR with **NumPy, explicit derivatives, and ordinary gradient descent**, then inspect an offline report with training plots and the actual numbers flowing through each layer.
+Understand a neural network from its equations, then test whether it learns a pattern beyond its training examples. Neural Math Lab implements **forward propagation, backpropagation, SGD, and Adam directly in NumPy**. Its offline reports let you replay actual training checkpoints, inspect individual predictions, and compare a neural network with logistic regression.
 
-This is an introductory AI/ML project by [TARUNTEjjjj](https://github.com/TARUNTEjjjj), connecting the mathematical focus of AxiomMath and Axiom SAT with hands-on Python. It is a separate experiment; it does not change those applications.
+This private learning project belongs to [TARUNTEjjjj](https://github.com/TARUNTEjjjj). It connects the mathematical focus of AxiomMath and Axiom SAT with practical Python and reproducible ML experiments.
 
-For a preview before installing anything, open the included **[`examples/xor/report.html`](examples/xor/report.html)** locally in a browser. The [recorded experiment](examples/xor/metrics.json) uses the defaults below. GitHub displays HTML source rather than running the report; download or clone the repository to view it.
+## Open a finished experiment first
 
-![Loss from the included default XOR experiment](examples/xor/loss.svg)
+Download or clone the repository and open one of these files locally in a browser:
 
-## Start here
+- **[Moons experiment](examples/moons/report.html):** two curved classes, checkpoint replay, and held-out evaluation.
+- **[Circles experiment](examples/circles/report.html):** concentric classes that make the difference from a straight-line baseline visible.
+- **[XOR introduction](examples/xor/report.html):** four examples with every layer's actual calculations exposed.
 
-You need Python 3.9 or newer, a terminal, and an internet connection for the initial dependency installation. A current supported Python release is recommended. Training and reading reports then work offline on a CPU; no GPU, account, dataset download, or API key is required.
+GitHub displays the HTML source rather than running the reports. Once downloaded, each report opens directly from disk without a web server, account, or internet connection. All scripts, styles, figures, and experiment data are embedded. Replay needs JavaScript; recorded metrics and a static learning-curve figure remain readable without it.
 
-Open a terminal inside this repository:
+The controls inspect a **recorded experiment**. They do not retrain the model in your browser. Use the Python commands below to change the experiment and produce a new report.
+
+![Training and validation loss in the included moons experiment](examples/moons/learning.svg)
+
+## Run your own experiment
+
+You need Python 3.9 or newer; a current supported Python release is recommended. Dependencies are NumPy and Matplotlib. Installation needs internet access, but training then runs locally on a CPU. No GPU, dataset download, model API, or API key is required.
+
+Open a terminal inside the repository:
 
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e .
+python -m neural_math_lab experiment --dataset moons --output runs/moons
+```
+
+On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell instead. Open `runs/moons/report.html` in your browser. On macOS:
+
+```sh
+open runs/moons/report.html
+```
+
+The default output directory is `runs/<dataset>`, so `experiment --dataset circles` uses `runs/circles`. An existing directory is preserved: choose a new `--output` path for each run.
+
+### What the advanced report shows
+
+- **Checkpoint replay:** watch the saved decision boundary change, then return to the validation-selected model. Final metric cards stay fixed while replaying.
+- **Point inspector:** click the map or enter raw coordinates; inspect their standardized values, hidden activations, output logit, and sigmoid value.
+- **Data split controls:** display training, validation, or held-out test points, and mark classification mistakes.
+- **Model comparison:** switch between the neural network and the separately trained logistic baseline.
+- **Diagnostics:** read training/validation loss, confusion counts, accuracy, precision, recall, F1, Brier score, and misclassified test examples.
+- **Provenance:** inspect settings, seeds, dependency versions, selected epoch, and stopping reason.
+
+The browser's prediction calculations are checked against the saved Python predictions. The exportable SVG figures and full machine-readable history remain available alongside the report.
+
+### Change one setting at a time
+
+```sh
+python -m neural_math_lab experiment --dataset circles --output runs/circles
+python -m neural_math_lab experiment --hidden 4 --output runs/moons-small
+python -m neural_math_lab experiment --l2 0.05 --output runs/moons-regularized
+python -m neural_math_lab experiment --optimizer sgd --learning-rate 0.05 --output runs/moons-sgd
+python -m neural_math_lab experiment --help
+```
+
+The advanced defaults are 600 examples, coordinate noise 0.15, 16 hidden `tanh` neurons, seed 7, Adam with learning rate 0.01, batch size 32, L2 coefficient 0.001, and at most 1,200 epochs. Patience is 100 epochs and `min_delta` is `1e-5`.
+
+Each class is split approximately **60% training / 20% validation / 20% test**, with integer rounding. The scaler is fitted only on training rows. Mini-batch updates use only training rows. Validation loss selects the saved parameters and controls early stopping; the test partition is evaluated after selection. The returned model restores the actual lowest-validation-loss checkpoint, which can differ from the last executed epoch. The guide explains how `min_delta` separately controls patience.
+
+Both models use the same split and scaler, with the same optimizer and hyperparameter budget, but each selects its own epoch using validation loss. This comparison does not exhaust the best possible tuning of either model.
+
+## Read the mathematics in two stages
+
+Start with the smaller network if derivatives and array shapes are still unfamiliar:
+
+1. [The XOR mathematics walkthrough](docs/mathematics.md): weights, biases, matrix shapes, the chain rule, a numerical update, and gradient checking.
+2. [Ten introductory exercises with answers](docs/exercises.md).
+3. [Beyond XOR](docs/advanced-mathematics.md): train/validation/test separation, standardization, mini-batches, L2, Adam bias correction, early stopping, baselines, and metrics.
+4. [Eight advanced experiments and worked answers](docs/advanced-exercises.md).
+
+The original XOR commands remain available:
+
+```sh
 python -m neural_math_lab gradient-check
-python -m neural_math_lab train
-```
-
-On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell instead.
-
-Open **`runs/xor/report.html`** in your browser. On macOS you can run:
-
-```sh
-open runs/xor/report.html
-```
-
-The report includes the training curve, a map of the fitted function, the four predictions, and a trace of one input through the network. It contains its own figures and opens without a server or internet connection. Keep or share a report only when you intend to share that experiment's weights and results.
-
-## What you will learn
-
-1. **Forward propagation:** turn inputs and parameters into a prediction.
-2. **Loss:** measure the difference between predictions and known targets.
-3. **Backpropagation:** use the chain rule to compute each parameter's derivative.
-4. **Gradient descent:** update the parameters to reduce loss.
-5. **Verification:** compare derivatives against finite differences, inspect failures, and make experiments reproducible.
-
-Read [the mathematics walkthrough](docs/mathematics.md), then try [the exercises and answers](docs/exercises.md). The walkthrough assumes comfort with basic algebra and derivatives, but explains programming notation and array shapes.
-
-The model has two inputs, one hidden layer with four `tanh` neurons by default, and a sigmoid output. With four hidden neurons, it learns 17 parameters: 8 input weights, 4 hidden biases, 4 output weights, and 1 output bias. NumPy supplies arrays and arithmetic; the project implements every derivative and update itself.
-
-## Inspect and change an experiment
-
-```sh
+python -m neural_math_lab train --output runs/xor
 python -m neural_math_lab explain --model runs/xor/model.json --input 1 0
-python -m neural_math_lab train --learning-rate 0.05 --output runs/slower
-python -m neural_math_lab train --hidden 2 --seed 7 --output runs/two-neurons
-python -m neural_math_lab --help
 ```
 
-An existing output directory is preserved: choose a new `--output` directory for each experiment. The defaults are 4,000 epochs, learning rate 0.5, four hidden neurons, and seed 7. An epoch is one full-batch update using all four XOR rows. History records epoch 0 before any updates and each completed update afterward.
+XOR defaults to four hidden neurons, 4,000 full-batch updates, learning rate 0.5, and seed 7. All four Boolean examples participate in fitting, so its displayed accuracy is **training accuracy**, not held-out accuracy. It is the first lesson in computing and checking the derivatives.
 
-Each output folder contains:
+For an advanced model, explain a raw input through the saved preprocessing and network together:
+
+```sh
+python -m neural_math_lab explain --model runs/moons/pipeline.json --input 0.5 0.2
+```
+
+The command prints the training mean and scale, standardized input, learned weights, and each intermediate layer. `pipeline.json` preserves the preprocessing required to interpret the weights correctly. Model files contain validated JSON numbers; loading does not execute pickle objects.
+
+## Recorded example results
+
+The committed examples use the advanced defaults above. Each test partition contains 120 rows that were not used for parameter updates or validation selection.
+
+| Recorded experiment | Neural test accuracy | Linear baseline test accuracy | Neural selected / stopped epoch |
+| --- | --- | --- | --- |
+| [Moons](examples/moons/metrics.json) | 96.67% — 116/120 | 92.5% — 111/120 | 777 / 877 |
+| [Circles](examples/circles/metrics.json) | 97.5% — 117/120 | 47.5% — 57/120 | 374 / 474 |
+
+These are measured results on **one synthetic split and seed per dataset**, not promises for other settings or real-world data. A sigmoid output is not calibrated confidence. Choosing future settings by repeatedly inspecting these test scores would make the test set part of development; use validation for selection and fresh evaluation data for a later final claim.
+
+## Files produced by an advanced experiment
 
 | File | Purpose |
 | --- | --- |
-| `report.html` | Self-contained visual walkthrough of this run |
-| `loss.svg`, `decision.svg` | Exportable plots |
-| `model.json` | Readable weights and biases; no executable pickle data |
-| `metrics.json` | Configuration, dependency versions, losses, and predictions |
-| `history.csv` | Loss and training accuracy at every epoch |
+| `report.html` | Self-contained interactive report, including replay data |
+| `pipeline.json` | Selected neural weights, training-only scaler, and dataset identifier |
+| `metrics.json` | Settings, split metrics, baseline results, selected/stopped epochs, and environment |
+| `experiment.json` | Complete data and split IDs, history, checkpoints, baseline, selected model, and test predictions |
+| `history.csv` | Full training/validation metrics and gradient norm at every recorded epoch |
+| `learning.svg`, `decision.svg` | Exportable learning curve and selected-model prediction figure |
 
-Predicted class is 1 when the sigmoid output is at least 0.5. That output is **not calibrated confidence**. All four XOR rows are used for fitting and evaluation: this is a demonstration of learning a truth table, **not a held-out test or evidence of generalization**. The smooth prediction map between binary inputs illustrates the learned function; XOR does not define labels there. Some settings and initializations may fail to learn.
+The XOR command instead produces `model.json`, `metrics.json`, `history.csv`, `loss.svg`, `decision.svg`, and its introductory `report.html`. Generated runs belong under the ignored `runs/` directory; the selected demonstration artifacts live in `examples/`.
 
-## Run the tests
+Reports include their experiment's coordinates, labels, weights, and results. Share a report only when you intend to share those contents. This project's examples are generated synthetic data.
+
+## Test the implementation
 
 ```sh
 python -m unittest discover -s tests -v
+node --test tests/test_report.js
 ```
 
-Tests cover hand-computed predictions, independent numerical gradient checks for every parameter, extreme logits, averaging across batches, training behavior, invalid inputs, safe model loading, and the full command-to-report workflow. GitHub Actions runs the suite and a complete experiment on Linux and macOS. [Verification notes](docs/verification.md) record the checks actually run for this release.
+Node.js 22 or newer is recommended for the browser-logic tests; it is not needed for Python training or for opening a report. No npm dependencies are required.
 
-The numerical gradient check approximates each derivative by evaluating the loss at `parameter + epsilon` and `parameter - epsilon`. It does not reuse the backpropagation implementation to calculate the reference value.
+Tests cover independently computed derivatives, numerical stability, optimizer arithmetic, regularization gradients, split disjointness, training-only scaling, test-data isolation, best-checkpoint restoration, JSON pipeline round trips, real CLI runs, report artifacts, and browser/Python prediction agreement. The central-difference gradient checks calculate their reference values from perturbed losses rather than reusing backpropagation.
 
-## Read the source in this order
+GitHub Actions is configured to run on Linux and macOS, including a Python 3.9 compatibility job, and exercises report generation from an installed package outside the source checkout. See [verification notes](docs/verification.md) and the workflow run for the exact commit's observed results.
 
-| File | What to look for |
+## Read the source
+
+| File | Responsibility |
 | --- | --- |
-| `neural_math_lab/core.py` | Dataset, initialization, forward pass, loss, gradients, updates, numerical checking |
-| `neural_math_lab/cli.py` | How command-line options connect those steps |
-| `neural_math_lab/storage.py` | Explicit JSON model format and validation |
-| `neural_math_lab/report.py` | Figures and report generated from actual results |
-| `tests/test_core.py` | Independent checks on the mathematics |
-
-The initial scope is deliberately one small network and one fully specified task. A useful later step is a two-dimensional synthetic dataset with separate training, validation, and test sets; it is not part of this release.
+| `neural_math_lab/core.py` | Inspectable network, stable forward/loss calculations, manual backpropagation, XOR training, gradient checking |
+| `neural_math_lab/datasets.py` | Synthetic generation, stratified split IDs, and training-only standardization |
+| `neural_math_lab/experiment.py` | SGD/Adam, L2, validation selection, baseline, and evaluation |
+| `neural_math_lab/storage.py` | Validated network and preprocessing pipeline JSON |
+| `neural_math_lab/cli.py` | Runnable training, experiment, explanation, and gradient-check commands |
+| `neural_math_lab/experiment_report.py` | Advanced artifacts and scientific figures from actual run data |
+| `neural_math_lab/assets/` | Embedded report layout, style, checkpoint replay, and point calculations |
+| `neural_math_lab/report.py` | Introductory XOR report |
+| `tests/` | Independent mathematical, data-boundary, CLI, persistence, and browser-logic checks |
 
 ## Sources and attribution
 
-The derivations, explanations, code, and exercises in this repository are original. Further reading:
+The explanations and implementation are original. Further reading:
 
 - [Stanford CS231n: backpropagation and the chain rule](https://cs231n.github.io/optimization-2/).
-- [NumPy: `logaddexp`](https://numpy.org/doc/stable/reference/generated/numpy.logaddexp.html), used for a stable loss calculation.
+- [Adam: A Method for Stochastic Optimization](https://arxiv.org/abs/1412.6980), Diederik P. Kingma and Jimmy Ba.
+- [NumPy: `logaddexp`](https://numpy.org/doc/stable/reference/generated/numpy.logaddexp.html), used for stable loss calculations.
 - [PyTorch: automatic differentiation](https://docs.pytorch.org/tutorials/beginner/basics/autogradqs_tutorial.html), for comparison after understanding the manual version.
 
-The repository is intended to remain private unless its owner chooses otherwise. There is no public deployment or telemetry. Dependencies have their own licenses. No third-party dataset is included; XOR is generated directly from its truth table.
+The repository is intended to remain private unless its owner chooses otherwise. There is no public deployment or telemetry. Dependencies have their own licenses. XOR, moons, and circles are generated locally; no third-party dataset is redistributed.

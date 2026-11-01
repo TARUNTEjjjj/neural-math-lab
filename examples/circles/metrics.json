@@ -1,0 +1,129 @@
+{
+  "config": {
+    "dataset": "circles",
+    "samples": 600,
+    "noise": 0.15,
+    "hidden": 16,
+    "seed": 7,
+    "epochs": 1200,
+    "learning_rate": 0.01,
+    "optimizer": "adam",
+    "batch_size": 32,
+    "l2": 0.001,
+    "patience": 100,
+    "min_delta": 1e-05
+  },
+  "metrics": {
+    "train": {
+      "loss": 0.1558278158328581,
+      "accuracy": 0.9333333333333333,
+      "precision": 0.9382022471910112,
+      "recall": 0.9277777777777778,
+      "f1": 0.9329608938547486,
+      "brier": 0.046107103839803994,
+      "confusion_matrix": [
+        [
+          169,
+          11
+        ],
+        [
+          13,
+          167
+        ]
+      ],
+      "samples": 360
+    },
+    "validation": {
+      "loss": 0.11688392309164439,
+      "accuracy": 0.9583333333333334,
+      "precision": 0.9824561403508771,
+      "recall": 0.9333333333333333,
+      "f1": 0.9572649572649573,
+      "brier": 0.03212840254700303,
+      "confusion_matrix": [
+        [
+          59,
+          1
+        ],
+        [
+          4,
+          56
+        ]
+      ],
+      "samples": 120
+    },
+    "test": {
+      "loss": 0.10918579140126203,
+      "accuracy": 0.975,
+      "precision": 0.9830508474576272,
+      "recall": 0.9666666666666667,
+      "f1": 0.9747899159663865,
+      "brier": 0.026306744639732326,
+      "confusion_matrix": [
+        [
+          59,
+          1
+        ],
+        [
+          2,
+          58
+        ]
+      ],
+      "samples": 120
+    }
+  },
+  "baseline": {
+    "parameters": {
+      "W": [
+        [
+          -0.18444246423721056
+        ],
+        [
+          0.022399141274716657
+        ]
+      ],
+      "b": [
+        [
+          -0.0029423349568109378
+        ]
+      ]
+    },
+    "best_epoch": 25,
+    "stopped_epoch": 125,
+    "stop_reason": "validation_patience",
+    "test": {
+      "loss": 0.7055831833408257,
+      "accuracy": 0.475,
+      "precision": 0.47619047619047616,
+      "recall": 0.5,
+      "f1": 0.4878048780487805,
+      "brier": 0.25617371904368036,
+      "confusion_matrix": [
+        [
+          27,
+          33
+        ],
+        [
+          30,
+          30
+        ]
+      ],
+      "samples": 120
+    }
+  },
+  "best_epoch": 374,
+  "stopped_epoch": 474,
+  "stop_reason": "validation_patience",
+  "seeds": {
+    "data": 7,
+    "split": 8,
+    "initialization": 9,
+    "network_batches": 10,
+    "baseline_batches": 11
+  },
+  "environment": {
+    "python": "3.9.6",
+    "numpy": "2.0.2",
+    "matplotlib": "3.9.4"
+  }
+}

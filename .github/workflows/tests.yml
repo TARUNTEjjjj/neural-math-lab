@@ -26,3 +26,11 @@ jobs:
       - run: python -m neural_math_lab gradient-check
       - run: python -m neural_math_lab train --output runs/ci
       - run: python -m neural_math_lab explain --model runs/ci/model.json --input 1 0
+      - run: node --test tests/test_report.js
+      - run: python -m neural_math_lab experiment --samples 120 --epochs 30 --output runs/advanced-ci
+      - run: python -m neural_math_lab explain --model runs/advanced-ci/pipeline.json --input 0.5 0.2
+      - name: Check packaged report assets outside the checkout
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          python -m neural_math_lab experiment --samples 120 --epochs 5 --output installed-smoke

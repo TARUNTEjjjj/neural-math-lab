@@ -1,10 +1,32 @@
 # Release verification
 
-Checked on 2 November 2026 using macOS on Apple Silicon, Python 3.9.6, NumPy 2.0.2, and Matplotlib 3.9.4. Dependency versions are also recorded in `examples/xor/metrics.json`.
+Checked on 2 November 2026 using macOS on Apple Silicon, Python 3.9.6, NumPy 2.0.2, and Matplotlib 3.9.4. Dependency versions are recorded alongside each example.
+
+## Advanced release (0.2)
+
+- **105 Python tests passed**, including the original 53 regressions and 52 new tests for datasets, optimizers, experiments, pipelines, and the advanced CLI.
+- **5 Node.js tests passed**, including agreement within `1e-12` between the browser's inference and every saved Python test prediction in both advanced examples.
+- A wheel was built, installed into a temporary directory, and used outside the source checkout to generate a circles report. All three HTML/CSS/JS assets were included. The dataset-specific default path was `runs/circles`.
+- Browser checks covered checkpoint keyboard navigation, animated replay, restoring the selected model, switching to the linear baseline, split selection, mistake marking, and raw-coordinate inspection. Baseline mode correctly disables neural replay.
+- At raw input `(0.5, 0.2)`, the included moons report displayed `0.538760`, matching the Python explanation. Submitting a high-precision coordinate twice preserved both the inputs and prediction.
+- The report was checked at desktop size and a **390 × 844** mobile viewport. A grid sizing issue initially let tables and command text overflow the page; after correction, document width and scroll width were both 390 pixels. Mobile point inspection worked, and the tested page had no browser console errors.
+
+The default advanced runs used seed 7, 600 rows, noise 0.15, 16 hidden neurons, Adam at 0.01, batches of 32, L2 0.001, and at most 1,200 epochs. Each run contained 360 training, 120 validation, and 120 test examples.
+
+| Dataset | Selected / stopped epoch | Neural test accuracy | Baseline test accuracy | Neural test BCE |
+| --- | --- | --- | --- | --- |
+| Moons | 777 / 877 | 116/120 (96.67%) | 111/120 (92.5%) | 0.07208 |
+| Circles | 374 / 474 | 117/120 (97.5%) | 57/120 (47.5%) | 0.10919 |
+
+These results describe one synthetic split per dataset. They do not establish accuracy on another distribution or statistical superiority across seeds. Saved artifacts in `examples/moons` and `examples/circles` contain the complete data, split IDs, history, checkpoints, and predictions needed to inspect these measurements.
+
+The new tests independently check Adam's first two updates, SGD arithmetic, L2 finite-difference gradients and unpenalized biases, stratified/disjoint splits, train-only scaling, deterministic histories, minimum-validation checkpoint restoration, bounded replay checkpoints, and exact metric counts. A test modifies only held-out examples and verifies that fitted parameters, training history, scaler, baseline, and selected epoch do not change. Integration tests reload the pipeline and recompute every test prediction, validate the embedded script's CSP hash, and ensure reports have no remote assets.
+
+Review also caught an inspector rounding issue: the fields displayed five decimals while inference used the original coordinates. Inputs now preserve their actual numeric values, so resubmission is consistent.
 
 ## Executed checks
 
-- `python -m unittest discover -s tests -v`: **53 tests passed**.
+- The original 53 tests remain part of the expanded passing suite above.
 - `python -m neural_math_lab gradient-check`: maximum absolute difference between analytic and central-difference gradients **1.10493e-11** at the default initialization.
 - `python -m neural_math_lab train`: completed 4,000 updates with seed 7, hidden width 4, and learning rate 0.5. The recorded run was copied to `examples/xor/`.
 - `python -m neural_math_lab explain --model runs/xor/model.json --input 1 0`: displayed the learned parameters and actual intermediate layer values.
@@ -31,8 +53,8 @@ During visual-report testing, this Mac's NumPy/Apple Accelerate combination emit
 
 ## Continuous checks
 
-`.github/workflows/tests.yml` runs the suite plus training, gradient checking, and explanation on Ubuntu 24.04 with Python 3.9, current Ubuntu with Python 3.12, and macOS with Python 3.12. The compatibility job is pinned because GitHub's Python distribution manifest does not provide Python 3.9 for Ubuntu 26.04. Consult the workflow run for the exact commit's status; this document records the local checks above rather than assuming remote jobs passed.
+`.github/workflows/tests.yml` runs both test suites plus XOR training, gradient checking, advanced experiments, pipeline explanation, and an installed-package smoke check on Ubuntu 24.04 with Python 3.9, current Ubuntu with Python 3.12, and macOS with Python 3.12. The compatibility job is pinned because GitHub's Python distribution manifest does not provide Python 3.9 for Ubuntu 26.04. Consult the workflow run for the exact commit's status; this document records the local checks above rather than assuming remote jobs passed.
 
-The lab does not require network access after dependencies are installed, does not collect telemetry, and does not create a public service. The HTML report embeds both figures and has no external scripts or remote assets.
+The lab does not require network access after dependencies are installed, does not collect telemetry, and does not create a public service. Advanced reports embed the learning figure, interactive plot code, and recorded experiment data; separate SVG exports are also provided. There are no external scripts or remote assets.
 
 The generated report was inspected in a browser at desktop size and at a 390-pixel viewport. The narrow layout had no page-wide horizontal overflow, and the expandable weights panel displayed the saved parameters.

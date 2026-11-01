@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neural-math-lab"
-version = "0.1.0"
+version = "0.2.0"
 description = "Learn a tiny neural network through explicit NumPy mathematics, gradient checks, and local reports."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -16,3 +16,6 @@ neural-math-lab = "neural_math_lab.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["neural_math_lab*"]
+
+[tool.setuptools.package-data]
+neural_math_lab = ["assets/*.html", "assets/*.css", "assets/*.js"]

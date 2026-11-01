@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from .core import Network, gradient_check, train, xor_data
-from .storage import load_model
+from .storage import load_for_explanation
 
 
 def parser():
@@ -20,6 +20,20 @@ def parser():
     fit.add_argument("--hidden", type=int, default=4)
     fit.add_argument("--seed", type=int, default=7)
     fit.add_argument("--output", type=Path, default=Path("runs/xor"), help="New output directory; existing directories are preserved.")
+    experiment = commands.add_parser("experiment", help="Train moons or circles with validation, a held-out test set, and interactive replay.")
+    experiment.add_argument("--dataset", choices=("moons", "circles"), default="moons")
+    experiment.add_argument("--samples", type=int, default=600)
+    experiment.add_argument("--noise", type=float, default=0.15)
+    experiment.add_argument("--hidden", type=int, default=16)
+    experiment.add_argument("--seed", type=int, default=7)
+    experiment.add_argument("--epochs", type=int, default=1200)
+    experiment.add_argument("--learning-rate", type=float, default=0.01)
+    experiment.add_argument("--optimizer", choices=("adam", "sgd"), default="adam")
+    experiment.add_argument("--batch-size", type=int, default=32)
+    experiment.add_argument("--l2", type=float, default=0.001)
+    experiment.add_argument("--patience", type=int, default=100)
+    experiment.add_argument("--min-delta", type=float, default=1e-5)
+    experiment.add_argument("--output", type=Path, help="New output directory (default: runs/<dataset>); existing directories are preserved.")
     check = commands.add_parser("gradient-check", help="Compare backpropagation with finite differences.")
     check.add_argument("--hidden", type=int, default=4)
     check.add_argument("--seed", type=int, default=7)
@@ -41,20 +55,42 @@ def main(argv=None):
             print("PASS: numerical and analytic gradients agree." if passed else "FAIL: gradients disagree.")
             return 0 if passed else 1
         if args.command == "explain":
-            network = load_model(args.model)
-            X = np.asarray([args.input], dtype=np.float64)
+            from .datasets import standardize
+            network, mean, scale, dataset = load_for_explanation(args.model)
+            raw = np.asarray([args.input], dtype=np.float64)
+            X = standardize(raw, mean, scale)
             values = network.forward(X)
             with np.printoptions(precision=6, suppress=True):
+                if dataset != "xor":
+                    print("Raw input =", raw)
+                    print("Training mean =", mean, "scale =", scale)
+                    print("Standardized input =", X)
                 print("x =", X)
                 for name in ("W1", "b1", "W2", "b2"):
                     print(name + " =", network.parameters[name])
                 for label, name in (("z1 = x @ W1 + b1", "z1"), ("h = tanh(z1)", "h"), ("z2 = h @ W2 + b2", "z2"), ("p = sigmoid(z2)", "p")):
                     print(label, "=", values[name])
             print("Predicted class at threshold 0.5:", int(values["p"][0, 0] >= 0.5))
-            print("p is a model output, not calibrated confidence. XOR is defined only on binary inputs.")
+            print("p is a model output, not calibrated confidence.")
+            if dataset == "xor":
+                print("XOR is defined only on binary inputs.")
             return 0
+        if args.command == "experiment" and args.output is None:
+            args.output = Path("runs") / args.dataset
         if args.output.exists():
             raise ValueError("Output directory already exists. Choose a new --output path to preserve previous experiments.")
+        if args.command == "experiment":
+            from .experiment import run_experiment
+            from .experiment_report import write_experiment_report
+            config = {name: value for name, value in vars(args).items() if name not in ("command", "output")}
+            result = run_experiment(**config)
+            write_experiment_report(result, args.output)
+            print("{}: {} training / {} validation / {} held-out test examples".format(args.dataset.title(), len(result["data"]["train_idx"]), len(result["data"]["val_idx"]), len(result["data"]["test_idx"])))
+            print("Selected epoch {} by validation loss; stopped at {} ({})".format(result["best_epoch"], result["stopped_epoch"], result["stop_reason"]))
+            print("Held-out accuracy: neural {:.2%}; linear baseline {:.2%}".format(result["metrics"]["test"]["accuracy"], result["baseline"]["test"]["accuracy"]))
+            print("The test set is evaluated after model selection. These are results on one synthetic split.")
+            print("Open the interactive offline report:", (args.output / "report.html").resolve())
+            return 0
         network = Network(hidden=args.hidden, seed=args.seed)
         X, y = xor_data()
         history = train(network, X, y, epochs=args.epochs, learning_rate=args.learning_rate)

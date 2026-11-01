@@ -20,13 +20,19 @@ def save_model(network, path):
     Path(path).write_text(json.dumps(model_document(network), indent=2, allow_nan=False) + "\n", encoding="utf-8")
 
 
-def load_model(path):
+def _read_document(path):
     with Path(path).open("rb") as stream:
         raw = stream.read(256_001)
     if len(raw) > 256_000:
         raise ValueError("Model file exceeds the 256 KB limit.")
     try:
-        doc = json.loads(raw)
+        return json.loads(raw)
+    except (UnicodeError, RecursionError) as exc:
+        raise ValueError("Model must be valid JSON.") from exc
+
+
+def _network_from_document(doc):
+    try:
         if not isinstance(doc, dict) or set(doc) != {"format", "hidden", "parameters"}:
             raise ValueError("Unexpected model fields.")
         if doc["format"] != "neural-math-lab-v1":
@@ -49,3 +55,49 @@ def load_model(path):
         return net
     except (TypeError, UnicodeError, OverflowError, RecursionError) as exc:
         raise ValueError("Model must be valid JSON with finite numeric parameters.") from exc
+
+
+def load_model(path):
+    return _network_from_document(_read_document(path))
+
+
+def save_pipeline(network, mean, scale, dataset, path):
+    doc = {"format": "neural-math-lab-pipeline-v2", "model": model_document(network),
+           "standardizer": {"mean": np.asarray(mean).tolist(), "scale": np.asarray(scale).tolist()},
+           "dataset": dataset}
+    _pipeline_from_document(doc)
+    Path(path).write_text(json.dumps(doc, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+
+
+def _pipeline_from_document(doc):
+    if not isinstance(doc, dict) or set(doc) != {"format", "model", "standardizer", "dataset"} or doc["format"] != "neural-math-lab-pipeline-v2":
+        raise ValueError("Invalid pipeline format or fields.")
+    if doc["dataset"] not in ("moons", "circles"):
+        raise ValueError("Pipeline dataset must be moons or circles.")
+    scaler = doc["standardizer"]
+    if not isinstance(scaler, dict) or set(scaler) != {"mean", "scale"}:
+        raise ValueError("Pipeline must contain mean and scale.")
+    arrays = {}
+    for key, value in scaler.items():
+        if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], list) or len(value[0]) != 2 or not all(type(v) in (float, int) for v in value[0]):
+            raise ValueError("Standardizer must contain 1 by 2 matrices of JSON numbers.")
+        try:
+            arrays[key] = np.asarray(value, dtype=np.float64)
+        except (ValueError, OverflowError) as exc:
+            raise ValueError("Standardizer must contain finite numbers.") from exc
+        if not np.isfinite(arrays[key]).all():
+            raise ValueError("Standardizer must contain finite numbers.")
+    if np.any(arrays["scale"] <= 0):
+        raise ValueError("Standardizer scale must be positive.")
+    return _network_from_document(doc["model"]), arrays["mean"], arrays["scale"], doc["dataset"]
+
+
+def load_pipeline(path):
+    return _pipeline_from_document(_read_document(path))
+
+
+def load_for_explanation(path):
+    doc = _read_document(path)
+    if isinstance(doc, dict) and doc.get("format") == "neural-math-lab-pipeline-v2":
+        return _pipeline_from_document(doc)
+    return _network_from_document(doc), np.zeros((1, 2)), np.ones((1, 2)), "xor"
