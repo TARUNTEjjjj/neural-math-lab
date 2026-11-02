@@ -44,7 +44,6 @@
     if (timer !== null) clearInterval(timer);
     timer = null;
     byId("play").textContent = "Play training";
-    byId("play").setAttribute("aria-pressed", "false");
   }
   function color(p) {
     const a = p < 0.5 ? [235, 207, 182] : [245, 246, 233];
@@ -147,7 +146,7 @@
   function update() {
     const frame = selectedFrame();
     byId("frame-label").textContent = isLinear() ? "Linear baseline · epoch " + data.baseline.best_epoch : "Epoch " + frame.epoch + (frame.epoch === data.best_epoch ? " · selected" : " · replay");
-    byId("frame-detail").textContent = isLinear() ? "The baseline’s validation-selected model. Its parameters remain fixed during comparison." : "Checkpoint " + (Number(slider.value) + 1) + " of " + frames.length + ". Black contour approximates p = 0.5. Metric cards show the selected model at epoch " + data.best_epoch + ", not this replay frame.";
+    byId("frame-detail").textContent = isLinear() ? "The baseline’s validation-selected model. Its parameters remain fixed during comparison." : "Checkpoint " + (Number(slider.value) + 1) + " of " + frames.length + ". The dark green contour approximates p = 0.5. Metric cards show the selected model at epoch " + data.best_epoch + ", not this replay frame.";
     slider.setAttribute("aria-valuetext", "Epoch " + frame.epoch);
     drawBoundary(); drawCurve(); updateInspector();
   }
@@ -179,7 +178,7 @@
   byId("play").addEventListener("click", () => {
     if (timer !== null) { stop(); return; }
     if (Number(slider.value) >= frames.length - 1 || Number(slider.value) === bestIndex) slider.value = "0";
-    byId("play").textContent = "Pause"; byId("play").setAttribute("aria-pressed", "true"); update();
+    byId("play").textContent = "Pause"; update();
     timer = setInterval(() => { if (Number(slider.value) >= frames.length - 1) { stop(); return; } slider.value = String(Number(slider.value) + 1); update(); }, 220);
   });
   document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); });
