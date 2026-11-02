@@ -101,6 +101,14 @@ class StandardizationTests(unittest.TestCase):
         np.testing.assert_allclose(transformed[:, 0], [-math.sqrt(1.5), 0, math.sqrt(1.5)], atol=1e-14)
         np.testing.assert_array_equal(transformed[:, 1], [0, 0, 0])
 
+    def test_constant_column_with_rounded_mean_keeps_unit_scale(self):
+        training = np.array([[0.1, 1.], [0.1, 2.], [0.1, 3.]])
+        mean, scale = fit_standardizer(training)
+        self.assertEqual(scale[0, 0], 1.)
+        np.testing.assert_allclose(standardize(training, mean, scale)[:, 0], [0, 0, 0], atol=1e-14)
+        actual = standardize([[0.2, 2.]], mean, scale)
+        np.testing.assert_allclose(actual, [[0.2 - mean[0, 0], 0.]], atol=1e-14)
+
     def test_evaluation_rows_use_frozen_training_statistics(self):
         training = np.array([[1., 2.], [3., 6.]])
         mean, scale = fit_standardizer(training)
