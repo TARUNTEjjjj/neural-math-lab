@@ -246,7 +246,7 @@ arithmetic example, not derivatives claimed for a particular network run.
 
 | Step | $m_t$ | $v_t$ | $\widehat m_t$ | $\widehat v_t$ | Parameter after update |
 | --- | --- | --- | --- | --- | --- |
-| 1 | 0.2 | 0.004 | 2 | 4 | 0.900000001 |
+| 1 | 0.2 | 0.004 | 2 | 4 | 0.9000000005 |
 | 2 | 0.08 | 0.004996 | 0.421052632 | 2.499249625 | 0.873366297 |
 
 Although the second current gradient is negative, the parameter still
