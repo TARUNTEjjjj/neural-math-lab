@@ -246,7 +246,7 @@ arithmetic example, not derivatives claimed for a particular network run.
 
 | Step | $m_t$ | $v_t$ | $\widehat m_t$ | $\widehat v_t$ | Parameter after update |
 | --- | --- | --- | --- | --- | --- |
-| 1 | 0.2 | 0.004 | 2 | 4 | 0.900000001 |
+| 1 | 0.2 | 0.004 | 2 | 4 | 0.9000000005 |
 | 2 | 0.08 | 0.004996 | 0.421052632 | 2.499249625 | 0.873366297 |
 
 Although the second current gradient is negative, the parameter still
@@ -373,11 +373,12 @@ the report need not store every epoch's full parameter arrays. Use the displayed
 epoch rather than assuming equally spaced frames imply equally spaced changes
 in model quality.
 
-The coordinate inspector calculates what the selected model outputs at your
-chosen raw point. It does not create a new labeled test example. Especially far
-from the generated data, a confident-looking sigmoid value can be an unreliable
-extrapolation. Use the plotted held-out points to connect the function to actual
-evaluation examples.
+The coordinate inspector calculates what the displayed model (the current
+replay checkpoint, or the linear baseline) outputs at your chosen raw point;
+press "Selected model" to inspect the validation-selected network. It does
+not create a new labeled test example. Especially far from the generated data,
+a confident-looking sigmoid value can be an unreliable extrapolation. Use the
+plotted held-out points to connect the function to actual evaluation examples.
 
 Your next step is the [advanced exercises](advanced-exercises.md). For each run,
 write a prediction, change one setting, record the result, and explain what the
