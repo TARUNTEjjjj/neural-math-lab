@@ -83,7 +83,8 @@ def fit_standardizer(X_train):
             scale = X_train.std(axis=0, keepdims=True)
         except FloatingPointError as exc:
             raise ValueError("Training coordinates are too large to standardize.") from exc
-    scale = np.where(scale == 0, 1.0, scale)
+    constant = X_train.max(axis=0, keepdims=True) == X_train.min(axis=0, keepdims=True)
+    scale = np.where(constant | (scale == 0), 1.0, scale)
     if not np.isfinite(mean).all() or not np.isfinite(scale).all():
         raise ValueError("Standardization produced non-finite statistics.")
     return mean, scale
