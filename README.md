@@ -20,7 +20,9 @@ The controls inspect a **recorded experiment**. They do not retrain the model in
 
 ## Run your own experiment
 
-You need Python 3.9 or newer; a current supported Python release is recommended. Dependencies are NumPy and Matplotlib. Installation needs internet access, but training then runs locally on a CPU. No GPU, dataset download, model API, or API key is required.
+You need Python 3.9 or newer. On macOS, `/usr/bin/python3` (Python 3.9 from Apple's Command Line Tools) still works, but Python 3.9 and 3.10 no longer receive security fixes. Current NumPy releases need Python 3.12 or newer, so Python 3.12 or newer is recommended. Dependencies are NumPy and Matplotlib. Installation needs internet access, but training then runs locally on a CPU. No GPU, dataset download, model API, or API key is required.
+
+Check `python3 --version` before creating the environment. If it reports 3.9 or 3.10 and a newer Python is installed, use that interpreter in the first command instead, for example `python3.12 -m venv .venv`.
 
 Open a terminal inside the repository:
 
@@ -148,7 +150,7 @@ Node.js 22 or newer is recommended for the browser-logic tests; it is not needed
 
 Tests cover independently computed derivatives, numerical stability, optimizer arithmetic, regularization gradients, split disjointness, training-only scaling, test-data isolation, best-checkpoint restoration, JSON pipeline round trips, real CLI runs, report artifacts, and browser/Python prediction agreement. The central-difference gradient checks calculate their reference values from perturbed losses rather than reusing backpropagation.
 
-GitHub Actions is configured to run on Linux and macOS, including a Python 3.9 compatibility job, and exercises report generation from an installed package outside the source checkout. See [verification notes](docs/verification.md) and the workflow run for the exact commit's observed results.
+GitHub Actions is configured to run on Linux with Python 3.9, 3.12, and 3.15 and Node.js 22, 24, and 26, and on macOS with Python 3.15 and Node.js 26. A separate Linux job runs the Python tests with the oldest accepted NumPy (1.26.0) and Matplotlib (3.7.0). The workflow also exercises report generation from an installed package outside the source checkout. See [verification notes](docs/verification.md) and the workflow run for the exact commit's observed results.
 
 ## Read the source
 

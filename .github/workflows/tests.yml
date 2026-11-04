@@ -8,23 +8,35 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Oldest supported Python: macOS /usr/bin/python3 runs 3.9 from Apple's Command Line Tools.
           # Python 3.9 binaries are available for 24.04, not the newer latest image.
+          # Node.js 22 is the oldest Node.js LTS line that is still maintained.
           - os: ubuntu-24.04
             python: '3.9'
+            node: '22'
           - os: ubuntu-latest
             python: '3.12'
+            node: '24'
+          # Newest Python and newest Node.js LTS.
+          - os: ubuntu-latest
+            python: '3.15'
+            node: '26'
           - os: macos-latest
-            python: '3.12'
+            python: '3.15'
+            node: '26'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node }}
       - run: python -m pip install .
+      - name: Record the resolved dependency versions
+        run: python -m pip list
       - run: python -m unittest discover -s tests -v
       - run: python -m neural_math_lab gradient-check
       - run: python -m neural_math_lab train --output runs/ci
@@ -37,3 +49,17 @@ jobs:
         run: |
           cd "$RUNNER_TEMP"
           python -m neural_math_lab experiment --samples 120 --epochs 5 --output installed-smoke
+  minimum-dependencies:
+    # The oldest NumPy and Matplotlib releases that pyproject.toml accepts.
+    # Python 3.11 is the newest release with wheels for both.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - run: python -m pip install "numpy==1.26.0" "matplotlib==3.7.0" .
+      - name: Record the resolved dependency versions
+        run: python -m pip list
+      - run: python -m unittest discover -s tests -v

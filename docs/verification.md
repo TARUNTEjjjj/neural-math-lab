@@ -1,5 +1,76 @@
 # Release verification
 
+## Toolchain refresh — 5 November 2026
+
+This refresh changes no package code; the version stays 0.3.0. It updates
+continuous integration and records checks against the newest Python, NumPy,
+and Matplotlib releases. Python 3.9 and 3.10 have reached end of life. The
+package still accepts both (`requires-python = ">=3.9"`), because
+`/usr/bin/python3` on macOS still runs Python 3.9 from Apple's Command Line
+Tools. Python 3.10 was not tested.
+
+The workflow now uses `actions/checkout@v7`, `actions/setup-python@v7`, and
+`actions/setup-node@v7`. The previous v4/v5 actions targeted Node.js 20, so
+every job reported a deprecation warning. The new matrix is described under
+Continuous checks. Each job records its resolved dependency versions.
+
+Checked locally on macOS Apple Silicon. The 19 browser-logic tests passed with
+Node.js 26.13.0, and the Python tests passed in each environment below:
+
+| Python | NumPy | Matplotlib | Python tests |
+| --- | --- | --- | --- |
+| 3.9.6 (Command Line Tools `/usr/bin/python3`) | 2.0.2 | 3.9.4 | 135 passed |
+| 3.11.18 | 1.26.0 (oldest accepted) | 3.7.0 (oldest accepted) | 135 passed |
+| 3.11.18 | 2.4.6 | 3.11.2 | 135 passed |
+| 3.12.16, 3.13.18, 3.14.10 | 2.5.4 | 3.11.2 | 135 passed each |
+| 3.15.2 | 2.5.4 | 3.11.2 | 135 passed, also with warnings as errors |
+
+Each `run:` step of the new workflow was also replayed on this Mac for the
+Python 3.9, 3.12, and 3.15 jobs and the minimum-dependency job, in a fresh copy
+and a new virtual environment with the workflow's own `pip install` commands.
+Every step passed. The replay used Node.js 26.13.0 throughout and Python 3.9.6
+for the 3.9 job, so it did not exercise Ubuntu, Node.js 22 or 24, or the
+Python 3.9.25 that CI installs.
+
+On Python 3.15.2 with NumPy 2.5.4 and Matplotlib 3.11.2, the default moons,
+circles, and XOR runs reproduce the committed `metrics.json`,
+`diagnostics.json`, `pipeline.json`, and `model.json` values exactly, apart
+from the recorded environment versions. In `experiment.json` and
+`history.csv`, the only other value that changes is the recorded gradient
+norm: 162 of 878 moons epochs and 75 of 475 circles epochs differ by one unit
+in the last place. The gradients and NumPy's per-parameter sums are bitwise
+identical; since Python 3.12, the built-in `sum()` that adds those four sums
+uses compensated (Neumaier) summation. The gradient norm is a diagnostic: it
+does not affect updates, selection, or stopping. The committed examples are
+therefore unchanged and still record the environment that produced them.
+
+Default moons training took 1.45–1.54 s on the new stack versus 2.07–2.22 s on
+Python 3.9 with NumPy 2.0.2 (best of three runs, repeated five times). On this
+Mac, Matplotlib 3.9 and newer took about 10 seconds to build a fresh font
+cache, almost all of it in one `system_profiler SPFontsDataType` call; 3.7
+took under one second. Matplotlib then reuses the cache from `~/.matplotlib`
+across Python versions and virtual environments until its font-cache version
+changes or `MPLCONFIGDIR` points to a new directory. The slow step does not run
+on Linux or Windows. The two CLI test classes each set a private
+`MPLCONFIGDIR`, so with Matplotlib 3.11.2 their two cache builds took about 19
+of the suite's 23 seconds.
+
+A wheel built with Python 3.15 contained every module and report asset, and
+its installed `neural-math-lab` command produced a complete experiment outside
+the checkout. On Python 3.15.2, 25 invalid CLI inputs each reported a one-line
+error and exited with status 2. Four extreme inputs that the CLI accepts
+(weights of 1e300, learning rates of 1e6 and 1e300, and 64 hidden units)
+exited with status 0 and finite numbers, although both large learning rates
+diverged. None produced a traceback or left a partial output directory. On
+Python 3.9 and 3.11, `argparse` itself rejects a negative number written in
+exponent notation, such as `--input 0.5 -2e-1`, with a usage message.
+
+In headless Chrome 156, each committed report loaded with one network request,
+over HTTP and from disk, and logged no console messages. Running the moons and
+circles reports' own inference code there reproduced all 240 saved Python test
+predictions within 1e-12 (largest difference 3.3e-16), for both the committed
+reports and reports regenerated on Python 3.15.
+
 ## Decision lab release (0.3) — 5 November 2026
 
 Checked locally on macOS Apple Silicon with Python 3.9.6, NumPy 2.0.2 and
@@ -43,9 +114,10 @@ assets and preserve their inline-script CSP hash.
 
 The 0.3 wheel was built and installed into a temporary directory. Running the
 installed experiment and sensitivity CLI outside the checkout succeeded; the
-wheel includes the diagnostics module and all offline report assets. GitHub
-Actions covers Ubuntu Python 3.9/3.12 and macOS Python 3.12, with Node 22 pinned
-for browser-logic tests. Check the exact commit's workflow for remote results.
+wheel includes the diagnostics module and all offline report assets. At that
+release, GitHub Actions covered Ubuntu Python 3.9/3.12 and macOS Python 3.12,
+with Node 22 pinned for browser-logic tests. Check the exact commit's workflow
+for remote results.
 
 Checked on 2 November 2026 using macOS on Apple Silicon, Python 3.9.6, NumPy 2.0.2, and Matplotlib 3.9.4. Dependency versions are recorded alongside each example.
 
@@ -100,7 +172,7 @@ During visual-report testing, this Mac's NumPy/Apple Accelerate combination emit
 
 ## Continuous checks
 
-`.github/workflows/tests.yml` runs both test suites plus XOR training, gradient checking, advanced experiments, pipeline explanation, and an installed-package smoke check on Ubuntu 24.04 with Python 3.9, current Ubuntu with Python 3.12, and macOS with Python 3.12. The compatibility job is pinned because GitHub's Python distribution manifest does not provide Python 3.9 for Ubuntu 26.04. Consult the workflow run for the exact commit's status; this document records the local checks above rather than assuming remote jobs passed.
+`.github/workflows/tests.yml` runs both test suites plus XOR training, gradient checking, advanced experiments, pipeline explanation, and an installed-package smoke check on Ubuntu 24.04 with Python 3.9 and Node.js 22, current Ubuntu with Python 3.12 and Node.js 24, and both current Ubuntu and macOS with Python 3.15 and Node.js 26. A separate Ubuntu 24.04 job runs the Python tests on Python 3.11 with NumPy 1.26.0 and Matplotlib 3.7.0, the oldest NumPy and Matplotlib releases that `pyproject.toml` accepts. The Python 3.9 job is pinned to Ubuntu 24.04 because GitHub's Python distribution manifest does not provide Python 3.9 for Ubuntu 26.04. CI tests Python 3.9 only on Ubuntu; the macOS Command Line Tools Python 3.9.6 is covered by the local checks above. Consult the workflow run for the exact commit's status; this document records the local checks above rather than assuming remote jobs passed.
 
 The lab does not require network access after dependencies are installed, does not collect telemetry, and does not create a public service. Advanced reports embed the learning figure, interactive plot code, and recorded experiment data; separate SVG exports are also provided. There are no external scripts or remote assets.
 
