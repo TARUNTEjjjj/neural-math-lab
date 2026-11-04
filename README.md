@@ -94,6 +94,10 @@ python -m neural_math_lab explain --model runs/moons/pipeline.json --input 0.5 0
 
 The command prints the training mean and scale, standardized input, learned weights, and each intermediate layer. `pipeline.json` preserves the preprocessing required to interpret the weights correctly. Model files contain validated JSON numbers; loading does not execute pickle objects.
 
+Saving validates the model before replacing an existing file. Model and pipeline
+saves write a complete temporary file beside the destination before atomic
+replacement, so validation or write failures preserve the previous saved model.
+
 ## Recorded example results
 
 The committed examples use the advanced defaults above. Each test partition contains 120 rows that were not used for parameter updates or validation selection.

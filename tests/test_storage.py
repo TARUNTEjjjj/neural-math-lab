@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -40,6 +41,37 @@ class ModelStorageTests(unittest.TestCase):
         before = self.network.parameters["W1"].copy()
         document["parameters"]["W1"][0][0] = 999
         np.testing.assert_array_equal(self.network.parameters["W1"], before)
+
+    def test_invalid_save_preserves_previous_model(self):
+        save_model(self.network, self.path)
+        before = self.path.read_bytes()
+        for invalid in (np.zeros((1, 3)), np.full((2, 3), np.nan)):
+            self.network.parameters["W1"] = invalid
+            with self.subTest(shape=invalid.shape), self.assertRaises(ValueError):
+                save_model(self.network, self.path)
+            self.assertEqual(self.path.read_bytes(), before)
+            load_model(self.path)
+
+    def test_long_valid_destination_name_can_be_saved(self):
+        path = self.path.with_name("m" * 240 + ".json")
+        save_model(self.network, path)
+        restored = load_model(path)
+        np.testing.assert_array_equal(restored.predict_proba([[1., 0.]]),
+                                      self.network.predict_proba([[1., 0.]]))
+
+    def test_failed_sync_or_replacement_preserves_previous_model(self):
+        save_model(self.network, self.path)
+        before = self.path.read_bytes()
+        self.network.parameters["b2"][0, 0] = 12
+        for operation in ("fsync", "replace"):
+            with self.subTest(operation=operation), patch(
+                    "neural_math_lab.storage.os." + operation,
+                    side_effect=OSError("injected save failure")):
+                with self.assertRaisesRegex(OSError, "injected save failure"):
+                    save_model(self.network, self.path)
+            self.assertEqual(self.path.read_bytes(), before)
+            self.assertEqual(list(self.path.parent.iterdir()), [self.path])
+            load_model(self.path)
 
     def test_unknown_format_is_rejected(self):
         document = model_document(self.network)
