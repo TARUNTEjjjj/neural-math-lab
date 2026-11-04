@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -126,6 +127,16 @@ class PipelineStorageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             save_pipeline(self.network, self.mean, [[0, 1]], "moons", self.path)
         self.assertEqual(self.path.read_bytes(), before)
+
+    def test_failed_save_preserves_pipeline_and_cleans_temporary_file(self):
+        self.write(self.document)
+        before = self.path.read_bytes()
+        with patch("neural_math_lab.storage.os.replace", side_effect=OSError("destination unavailable")):
+            with self.assertRaisesRegex(OSError, "destination unavailable"):
+                save_pipeline(self.network, self.mean, self.scale, "moons", self.path)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(list(self.path.parent.iterdir()), [self.path])
+        load_pipeline(self.path)
 
     def test_oversized_and_malformed_json_are_rejected(self):
         for raw in (b" " * 256_001, b"{broken", b"\xff\xfe\xff"):
