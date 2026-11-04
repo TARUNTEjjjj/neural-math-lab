@@ -31,7 +31,7 @@ def _write_document(document, path):
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
-                                         prefix="." + path.name + ".", suffix=".tmp",
+                                         prefix=".neural-math-lab-", suffix=".tmp",
                                          delete=False) as stream:
             temporary = Path(stream.name)
             stream.write(encoded)
