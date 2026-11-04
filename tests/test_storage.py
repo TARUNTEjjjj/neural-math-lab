@@ -52,6 +52,13 @@ class ModelStorageTests(unittest.TestCase):
             self.assertEqual(self.path.read_bytes(), before)
             load_model(self.path)
 
+    def test_long_valid_destination_name_can_be_saved(self):
+        path = self.path.with_name("m" * 240 + ".json")
+        save_model(self.network, path)
+        restored = load_model(path)
+        np.testing.assert_array_equal(restored.predict_proba([[1., 0.]]),
+                                      self.network.predict_proba([[1., 0.]]))
+
     def test_failed_sync_or_replacement_preserves_previous_model(self):
         save_model(self.network, self.path)
         before = self.path.read_bytes()
