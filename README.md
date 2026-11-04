@@ -1,6 +1,6 @@
 # Neural Math Lab
 
-Understand a neural network from its equations, then test whether it learns a pattern beyond its training examples. Neural Math Lab implements **forward propagation, backpropagation, SGD, and Adam directly in NumPy**. Its offline reports let you replay actual training checkpoints, inspect individual predictions, and compare a neural network with logistic regression.
+Understand a neural network from its equations, then test whether it learns a pattern beyond its training examples. Neural Math Lab implements **forward propagation, backpropagation, SGD, and Adam directly in NumPy**. Its offline reports let you replay training checkpoints, compare a neural network with logistic regression, explore decision costs, and differentiate predictions with respect to raw inputs.
 
 This private learning project belongs to [TARUNTEjjjj](https://github.com/TARUNTEjjjj). It connects the mathematical focus of AxiomMath and Axiom SAT with practical Python and reproducible ML experiments.
 
@@ -47,6 +47,9 @@ The default output directory is `runs/<dataset>`, so `experiment --dataset circl
 - **Data split controls:** display training, validation, or held-out test points, and mark classification mistakes.
 - **Model comparison:** switch between the neural network and the separately trained logistic baseline.
 - **Diagnostics:** read training/validation loss, confusion counts, accuracy, precision, recall, F1, Brier score, and misclassified test examples.
+- **Decision lab:** explore thresholds on validation rows, compare false-positive and false-negative costs, and restore the threshold selected in Python. A separate held-out summary uses that frozen threshold.
+- **Ranking and reliability:** inspect ROC AUC, precision–recall and average precision, reliability bins, and class-1 probability ECE. Undefined metrics and empty bins are identified explicitly.
+- **Input sensitivity:** follow the chain rule through standardization, `tanh`, and sigmoid; compare a local linear approximation with an actual perturbed prediction.
 - **Provenance:** inspect settings, seeds, dependency versions, selected epoch, and stopping reason.
 
 The browser's prediction calculations are checked against the saved Python predictions. The exportable SVG figures and full machine-readable history remain available alongside the report.
@@ -58,6 +61,7 @@ python -m neural_math_lab experiment --dataset circles --output runs/circles
 python -m neural_math_lab experiment --hidden 4 --output runs/moons-small
 python -m neural_math_lab experiment --l2 0.05 --output runs/moons-regularized
 python -m neural_math_lab experiment --optimizer sgd --learning-rate 0.05 --output runs/moons-sgd
+python -m neural_math_lab experiment --fp-cost 1 --fn-cost 3 --output runs/moons-cost-3
 python -m neural_math_lab experiment --help
 ```
 
@@ -67,7 +71,11 @@ Each class is split approximately **60% training / 20% validation / 20% test**, 
 
 Both models use the same split and scaler, with the same optimizer and hyperparameter budget, but each selects its own epoch using validation loss. This comparison does not exhaust the best possible tuning of either model.
 
-## Read the mathematics in two stages
+After selecting weights, each model chooses its decision threshold using **validation cost only**. The cost is `(fp_cost × FP + fn_cost × FN) / N`; both costs default to 1. Equal-cost candidates prefer the threshold closest to 0.5, then the higher threshold. The chosen threshold is frozen before test evaluation. Changing the report's threshold controls explores validation behavior without rewriting the held-out result. Original accuracy cards and boundary replay retain their stated threshold of 0.5.
+
+The decision lab's diagnostics describe the selected model, independent of checkpoint replay. AUC measures ranking, ECE depends on bins, and Brier measures squared probability error; none alone establishes calibrated confidence. Read the worked four-row example before interpreting these metrics on a larger experiment.
+
+## Read the mathematics in three stages
 
 Start with the smaller network if derivatives and array shapes are still unfamiliar:
 
@@ -75,6 +83,8 @@ Start with the smaller network if derivatives and array shapes are still unfamil
 2. [Ten introductory exercises with answers](docs/exercises.md).
 3. [Beyond XOR](docs/advanced-mathematics.md): train/validation/test separation, standardization, mini-batches, L2, Adam bias correction, early stopping, baselines, and metrics.
 4. [Eight advanced experiments and worked answers](docs/advanced-exercises.md).
+5. [From a probability to a decision](docs/decision-mathematics.md): validation-only threshold selection, cost tradeoffs, ties, ROC/AUC, AP, reliability, and raw-input derivatives with numerical examples.
+6. [Eight decision-lab exercises with worked answers](docs/decision-exercises.md).
 
 The original XOR commands remain available:
 
@@ -115,7 +125,8 @@ These are measured results on **one synthetic split and seed per dataset**, not 
 | --- | --- |
 | `report.html` | Self-contained interactive report, including replay data |
 | `pipeline.json` | Selected neural weights, training-only scaler, and dataset identifier |
-| `metrics.json` | Settings, split metrics, baseline results, selected/stopped epochs, and environment |
+| `metrics.json` | Settings, split metrics, baseline results, compact decision diagnostics, selected/stopped epochs, and environment |
+| `diagnostics.json` | Validation-selected thresholds and costs, frozen test summaries, ranking curves, and reliability bins for both models |
 | `experiment.json` | Complete data and split IDs, history, checkpoints, baseline, selected model, and test predictions |
 | `history.csv` | Full training/validation metrics and gradient norm at every recorded epoch |
 | `learning.svg`, `decision.svg` | Exportable learning curve and selected-model prediction figure |
@@ -144,6 +155,7 @@ GitHub Actions is configured to run on Linux and macOS, including a Python 3.9 c
 | `neural_math_lab/core.py` | Inspectable network, stable forward/loss calculations, manual backpropagation, XOR training, gradient checking |
 | `neural_math_lab/datasets.py` | Synthetic generation, stratified split IDs, and training-only standardization |
 | `neural_math_lab/experiment.py` | SGD/Adam, L2, validation selection, baseline, and evaluation |
+| `neural_math_lab/diagnostics.py` | Cost-sensitive thresholds, tie-aware ranking metrics, reliability bins, and raw-input sensitivity |
 | `neural_math_lab/storage.py` | Validated network and preprocessing pipeline JSON |
 | `neural_math_lab/cli.py` | Runnable training, experiment, explanation, and gradient-check commands |
 | `neural_math_lab/experiment_report.py` | Advanced artifacts and scientific figures from actual run data |

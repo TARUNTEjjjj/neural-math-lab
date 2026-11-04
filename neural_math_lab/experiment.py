@@ -10,6 +10,7 @@ import numpy as np
 
 from .core import Network, _inputs, _integer, _matmul, _matrix, _positive, _sigmoid, _targets
 from .datasets import _bounded_real, fit_standardizer, make_dataset, standardize, stratified_split
+from .diagnostics import _cost, evaluate_binary, select_threshold
 
 
 def _checked_updates(parameters, gradients):
@@ -219,7 +220,7 @@ def _fit(model, X_train, y_train, X_val, y_val, config, seed, snapshots=True):
 
 def run_experiment(dataset="moons", samples=600, noise=0.15, hidden=16, seed=7,
                    epochs=1200, learning_rate=0.01, optimizer="adam", batch_size=32,
-                   l2=0.001, patience=100, min_delta=1e-5):
+                   l2=0.001, patience=100, min_delta=1e-5, fp_cost=1.0, fn_cost=1.0):
     """Fit on training rows, select on validation rows, then evaluate test once.
 
     Different random streams separate data, split, initialization, and shuffles.
@@ -238,6 +239,7 @@ def run_experiment(dataset="moons", samples=600, noise=0.15, hidden=16, seed=7,
         "optimizer": optimizer, "batch_size": _integer(batch_size, "batch_size", 1, 5000),
         "l2": _bounded_real(l2, "l2", 0, 10), "patience": _integer(patience, "patience", 1, 10000),
         "min_delta": _bounded_real(min_delta, "min_delta", 0, 10),
+        "fp_cost": _cost(fp_cost, "fp_cost"), "fn_cost": _cost(fn_cost, "fn_cost"),
     }
     seed = config["seed"]
     X, y = make_dataset(dataset, config["samples"], config["noise"], seed)
@@ -254,12 +256,37 @@ def run_experiment(dataset="moons", samples=600, noise=0.15, hidden=16, seed=7,
     baseline = _Logistic()
     _, _, baseline_best, baseline_stopped, baseline_reason = _fit(
         baseline, train_X, train_y, val_X, val_y, config, seed + 4, snapshots=False)
+    # Freeze both decision rules using validation scores before reading test rows.
+    validation_probabilities = {name: model.predict_proba(val_X)
+                                for name, model in (("network", network), ("baseline", baseline))}
+    decisions = {name: select_threshold(val_y, probabilities,
+                                       config["fp_cost"], config["fn_cost"])
+                 for name, probabilities in validation_probabilities.items()}
     test_X, test_y = standardize(X[ids["test_idx"]], mean, scale), y[ids["test_idx"]]
     metrics = {}
     for name, features, targets in (("train", train_X, train_y), ("validation", val_X, val_y), ("test", test_X, test_y)):
         metrics[name] = classification_metrics(targets, network.predict_proba(features), network.loss(features, targets))
     baseline_test = classification_metrics(test_y, baseline.predict_proba(test_X), baseline.loss(test_X, test_y))
+    diagnostics = {"selection_split": "validation", "decision_rule": "p >= threshold", "bin_count": 10}
+    for name, model in (("network", network), ("baseline", baseline)):
+        decision = decisions[name]
+        diagnostics[name] = {
+            "threshold_selection": decision,
+            # Replay counts against Python's exact scores. Recomputing a score
+            # in JavaScript can differ by one ulp at a selected threshold.
+            "validation_predictions": [
+                {"id": int(index), "target": int(target), "p": float(probability)}
+                for index, target, probability in zip(
+                    ids["val_idx"], val_y[:, 0], validation_probabilities[name][:, 0])],
+        }
+        for split, targets, probabilities in (
+                ("validation", val_y, validation_probabilities[name]),
+                ("test", test_y, model.predict_proba(test_X))):
+            diagnostics[name][split] = evaluate_binary(
+                targets, probabilities, decision["threshold"],
+                config["fp_cost"], config["fn_cost"], bins=10)
     return {
+        "diagnostics": diagnostics,
         "config": config, "network": network,
         "data": dict({"X": X, "y": y, "mean": mean, "scale": scale}, **ids),
         "history": history, "checkpoints": checkpoints,

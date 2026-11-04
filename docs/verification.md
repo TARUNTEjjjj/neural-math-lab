@@ -1,5 +1,52 @@
 # Release verification
 
+## Decision lab release (0.3) — 5 November 2026
+
+Checked locally on macOS Apple Silicon with Python 3.9.6, NumPy 2.0.2 and
+Matplotlib 3.9.4. The complete suite passed **135 Python tests** and **15 Node.js
+tests**. These include the earlier storage and training regressions.
+
+New mathematical checks compare AUC with an independent positive–negative
+pair calculation, AP and calibration with hand arithmetic, threshold selection
+with exhaustive candidate rules, and raw-input derivatives with central
+finite differences. They cover equal scores, missing classes, empty bins,
+probabilities at 0 and 1, the all-negative rule, invalid inputs, and strict
+floating-point settings. Changing test rows or decision costs cannot change
+trained weights, scaling, history, or selected epochs. An additional independent
+review checked 1,554 small label/score configurations against exhaustive rules.
+
+Both committed advanced examples were regenerated from the default experiment
+settings. At their validation-selected thresholds (equal error costs):
+
+| Dataset | Threshold | Test FP / FN | Test mean cost | Test ROC AUC |
+| --- | --- | --- | --- | --- |
+| Moons | 0.6830711918697014 | 1 / 1 | 0.016667 | 0.9975 |
+| Circles | 0.4430678144727584 | 1 / 2 | 0.025000 | 0.993333 |
+
+The existing fixed-0.5 results remain unchanged. These are descriptive results
+on one synthetic split, not population guarantees. The full diagnostics and
+exact validation scores are exported; `metrics.json` keeps a compact summary.
+
+Browser checks exercised exact threshold restoration, keyboard adjustment,
+all-positive/all-negative rules, invalid-input recovery, baseline switching,
+checkpoint replay, and raw-coordinate displacement. The held-out table stayed
+unchanged during exploration. At `(0.5, 0.2)` with displacement `(0.01, -0.02)`,
+the moons inspector matched Python: first-order output `0.562471044`, actual
+output `0.562382115`, absolute error about `8.89e-5`.
+
+Mobile checks at 390- and 320-pixel viewport widths found and fixed hidden
+section navigation and page-wide overflow from an expanded summary table.
+The final page has no horizontal overflow; wide numeric tables scroll inside
+their panels. Expanded ROC tables also passed this check. No browser console
+errors or warnings occurred in the tested interactions. Reports have no remote
+assets and preserve their inline-script CSP hash.
+
+The 0.3 wheel was built and installed into a temporary directory. Running the
+installed experiment and sensitivity CLI outside the checkout succeeded; the
+wheel includes the diagnostics module and all offline report assets. GitHub
+Actions covers Ubuntu Python 3.9/3.12 and macOS Python 3.12, with Node 22 pinned
+for browser-logic tests. Check the exact commit's workflow for remote results.
+
 Checked on 2 November 2026 using macOS on Apple Silicon, Python 3.9.6, NumPy 2.0.2, and Matplotlib 3.9.4. Dependency versions are recorded alongside each example.
 
 ## Advanced release (0.2)

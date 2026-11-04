@@ -14,8 +14,48 @@
     const p = z >= 0 ? 1 / (1 + e) : e / (1 + e);
     return { x, h, z, p };
   }
+  // Differentiate the saved model with respect to raw input coordinates.
+  // The 1/scale factor is the standardizer's derivative, not a fitted weight.
+  function inputSensitivity(parameters, raw, mean, scale, linear = false) {
+    const result = infer(parameters, raw, mean, scale, linear);
+    return raw.map((_, i) => {
+      const dz = linear ? parameters.W[i][0] : result.h.reduce(
+        (sum, h, j) => sum + parameters.W1[i][j] * (1 - h * h) * parameters.W2[j][0], 0);
+      return result.p * (1 - result.p) * dz / scale[0][i];
+    });
+  }
+  function thresholdMetrics(targets, probabilities, threshold, fpCost = 1, fnCost = 1) {
+    if (!Array.isArray(targets) || !Array.isArray(probabilities) || !targets.length || targets.length !== probabilities.length ||
+        !targets.every((v) => v === 0 || v === 1) || !probabilities.every((p) => Number.isFinite(p) && p >= 0 && p <= 1) ||
+        !Number.isFinite(threshold) || threshold < 0 || threshold > 1 + Number.EPSILON ||
+        !Number.isFinite(fpCost) || !Number.isFinite(fnCost) || fpCost <= 0 || fnCost <= 0 || fpCost > 1e6 || fnCost > 1e6) {
+      throw new RangeError("Use binary targets, finite probabilities, a threshold from 0 to just above 1, and positive costs.");
+    }
+    let tp = 0, tn = 0, fp = 0, fn = 0;
+    targets.forEach((y, i) => {
+      const positive = probabilities[i] >= threshold;
+      if (y === 1) { if (positive) tp++; else fn++; }
+      else { if (positive) fp++; else tn++; }
+    });
+    return { tp, tn, fp, fn, samples: targets.length, accuracy: (tp + tn) / targets.length,
+      precision: tp + fp ? tp / (tp + fp) : 0,
+      recall: tp + fn ? tp / (tp + fn) : 0,
+      f1: 2 * tp + fp + fn ? 2 * tp / (2 * tp + fp + fn) : 0,
+      total_cost: fp * fpCost + fn * fnCost,
+      mean_cost: (fp * fpCost + fn * fnCost) / targets.length };
+  }
+  function sensitivityProbe(parameters, raw, delta, mean, scale, linear = false) {
+    if (!Array.isArray(delta) || delta.length !== 2 || !delta.every(Number.isFinite)) {
+      throw new RangeError("Displacement must contain two finite raw-coordinate values.");
+    }
+    const p = infer(parameters, raw, mean, scale, linear).p;
+    const gradient = inputSensitivity(parameters, raw, mean, scale, linear);
+    const approximation = p + gradient.reduce((sum, g, i) => sum + g * delta[i], 0);
+    const actual = infer(parameters, raw.map((v, i) => v + delta[i]), mean, scale, linear).p;
+    return { p, gradient, approximation, actual, absolute_error: Math.abs(actual - approximation) };
+  }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { infer };
+    module.exports = { infer, inputSensitivity, thresholdMetrics, sensitivityProbe };
     return;
   }
   const data = JSON.parse(document.getElementById("experiment-data").textContent);
@@ -142,6 +182,103 @@
       fill.style.width = Math.abs(v) * 50 + "%"; fill.style.left = (v < 0 ? 50 + v * 50 : 50) + "%"; track.append(fill);
       const value = document.createElement("output"); value.textContent = v.toFixed(3); row.append(label, track, value); bars.append(row);
     });
+    updateSensitivity();
+  }
+  function updateSensitivity() {
+    const delta = [byId("delta-x").valueAsNumber, byId("delta-y").valueAsNumber];
+    const gradient = inputSensitivity(parameters(), probe, data.data.mean, data.data.scale, isLinear());
+    byId("probe-gradient").textContent = "∂p/∂x = [" + gradient.map((g) => g.toFixed(6)).join(", ") + "]";
+    if (!delta.every((v) => Number.isFinite(v) && Math.abs(v) <= 1)) {
+      byId("sensitivity-error").textContent = "Choose two finite displacements between −1 and 1 raw units.";
+      ["sensitivity-approximation", "sensitivity-actual", "sensitivity-error-value"].forEach((id) => { byId(id).textContent = "—"; });
+      return;
+    }
+    byId("sensitivity-error").textContent = "";
+    const r = sensitivityProbe(parameters(), probe, delta, data.data.mean, data.data.scale, isLinear());
+    byId("sensitivity-approximation").textContent = r.approximation.toFixed(6);
+    byId("sensitivity-actual").textContent = r.actual.toFixed(6);
+    byId("sensitivity-error-value").textContent = r.absolute_error.toExponential(3);
+  }
+  function drawUnitChart(id, points, xLabel, yLabel, options = {}) {
+    const plot = byId(id), c = plot.getContext("2d"), w = plot.width, h = plot.height;
+    const area = { left: 48, right: w - 16, top: 14, bottom: h - 45 };
+    const sx = (v) => area.left + v * (area.right - area.left);
+    const sy = (v) => area.bottom - v * (area.bottom - area.top);
+    c.clearRect(0, 0, w, h); c.font = "11px system-ui";
+    for (let i = 0; i <= 4; i++) {
+      const v = i / 4;
+      c.strokeStyle = "#e2e8de"; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(area.left, sy(v)); c.lineTo(area.right, sy(v)); c.stroke();
+      c.fillStyle = colors.ink; c.textAlign = "right"; c.fillText(v.toFixed(2), area.left - 7, sy(v) + 4);
+      c.textAlign = "center"; c.fillText(v.toFixed(2), sx(v), area.bottom + 18);
+    }
+    if (options.diagonal) {
+      c.setLineDash([4, 4]); c.strokeStyle = "#91a18b";
+      c.beginPath(); c.moveTo(sx(0), sy(0)); c.lineTo(sx(1), sy(1)); c.stroke(); c.setLineDash([]);
+    }
+    const valid = points.filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+    if (options.scatter) {
+      for (const point of valid) {
+        c.fillStyle = "#087f78"; c.beginPath(); c.arc(sx(point[0]), sy(point[1]), 4 + Math.min(4, Math.sqrt(point[2] || 0) / 3), 0, 2 * Math.PI); c.fill();
+      }
+    } else if (valid.length) {
+      c.strokeStyle = "#087f78"; c.lineWidth = 2; c.beginPath();
+      valid.forEach((point, i) => {
+        if (!i) c.moveTo(sx(point[0]), sy(point[1]));
+        else {
+          if (options.step) c.lineTo(sx(valid[i - 1][0]), sy(point[1]));
+          c.lineTo(sx(point[0]), sy(point[1]));
+        }
+      }); c.stroke();
+    }
+    if (options.marker && options.marker.every(Number.isFinite)) {
+      c.fillStyle = "#b94d24"; c.strokeStyle = "white"; c.lineWidth = 1.5;
+      c.beginPath(); c.arc(sx(options.marker[0]), sy(options.marker[1]), 5, 0, 2 * Math.PI); c.fill(); c.stroke();
+    }
+    if (!valid.length) {
+      c.fillStyle = colors.ink; c.textAlign = "center"; c.fillText("Undefined for these labels", w / 2, h / 2);
+    }
+    c.fillStyle = colors.ink; c.textAlign = "center"; c.fillText(xLabel, (area.left + area.right) / 2, h - 5);
+    c.save(); c.translate(12, (area.top + area.bottom) / 2); c.rotate(-Math.PI / 2); c.fillText(yLabel, 0, 0); c.restore();
+  }
+  const formatMetric = (v) => v === null ? "undefined" : v.toFixed(4);
+  const formatThreshold = (v) => v > 1 ? "above 1 (all negative)" : String(v);
+  function updateDecision() {
+    const selectedModel = byId("diagnostic-model").value;
+    const diagnostic = data.diagnostics[selectedModel];
+    const selection = diagnostic.threshold_selection;
+    const threshold = byId("threshold-number").valueAsNumber;
+    if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1 + Number.EPSILON) {
+      byId("threshold-error").textContent = "Enter a threshold from 0 to 1, or use Predict no positives. The displayed results retain the last valid threshold.";
+      return;
+    }
+    byId("threshold-error").textContent = "";
+    byId("decision-threshold").value = String(Math.min(1, threshold));
+    byId("decision-threshold").setAttribute("aria-valuetext", formatThreshold(threshold));
+    // Use recorded Python scores: recalculating a score in JavaScript can move
+    // an exact threshold tie by one floating-point unit and change its class.
+    const rows = diagnostic.validation_predictions;
+    const targets = rows.map((row) => row.target);
+    const probabilities = rows.map((row) => row.p);
+    const r = thresholdMetrics(targets, probabilities, threshold, selection.fp_cost, selection.fn_cost);
+    byId("threshold-context").textContent = "Exploring τ = " + formatThreshold(threshold) + " on " + rows.length + " validation examples. Saved selected τ = " + formatThreshold(selection.threshold) + ". FP cost " + selection.fp_cost + "; FN cost " + selection.fn_cost + ".";
+    for (const key of ["fp", "fn"]) byId("decision-" + key).textContent = String(r[key]);
+    for (const key of ["recall", "precision"]) byId("decision-" + key).textContent = (100 * r[key]).toFixed(1) + "%";
+    byId("decision-cost").textContent = r.mean_cost.toFixed(4);
+    byId("cost-equation").textContent = "Mean cost = (" + selection.fp_cost + " × " + r.fp + " false positives + " + selection.fn_cost + " × " + r.fn + " false negatives) / " + r.samples + " = " + r.mean_cost.toFixed(4);
+    const metrics = diagnostic.validation;
+    const tpr = r.tp + r.fn ? r.tp / (r.tp + r.fn) : null;
+    const fpr = r.fp + r.tn ? r.fp / (r.fp + r.tn) : null;
+    drawUnitChart("roc-chart", metrics.roc.map((p) => [p.fpr, p.tpr]), "False-positive rate", "True-positive rate", { diagonal: true, marker: [fpr, tpr] });
+    drawUnitChart("pr-chart", metrics.precision_recall.map((p) => [p.recall, p.precision]), "Recall", "Precision", { step: true, marker: [tpr, r.tp + r.fp ? r.precision : 1] });
+    drawUnitChart("reliability-chart", metrics.reliability_bins.filter((b) => b.count).map((b) => [b.mean_probability, b.fraction_positive, b.count]), "Mean probability in bin", "Observed positive fraction", { diagonal: true, scatter: true });
+    byId("roc-summary").textContent = "ROC AUC " + formatMetric(metrics.roc_auc) + ". Tied scores get half credit in the ranking interpretation. Dashed line: chance ranking; orange dot: explored rule.";
+    byId("pr-summary").textContent = "Average precision " + formatMetric(metrics.average_precision) + ". AP weights precision by each increase in recall; it is not trapezoidal PR area. No-positive curve endpoint uses precision 1 by convention.";
+    byId("reliability-summary").textContent = "Brier " + formatMetric(metrics.brier) + " · ECE " + formatMetric(metrics.ece) + " with " + data.diagnostics.bin_count + " equal-width bins. Dashed line: perfect bin agreement. Larger dots represent more examples.";
+  }
+  function restoreThreshold() {
+    byId("threshold-number").value = String(data.diagnostics[byId("diagnostic-model").value].threshold_selection.threshold);
+    updateDecision();
   }
   function update() {
     const frame = selectedFrame();
@@ -183,5 +320,13 @@
   });
   document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); });
   window.addEventListener("pagehide", stop);
+  byId("delta-x").addEventListener("input", updateSensitivity);
+  byId("delta-y").addEventListener("input", updateSensitivity);
+  byId("decision-threshold").addEventListener("input", () => { byId("threshold-number").value = byId("decision-threshold").value; updateDecision(); });
+  byId("threshold-number").addEventListener("input", updateDecision);
+  byId("diagnostic-model").addEventListener("change", restoreThreshold);
+  byId("restore-threshold").addEventListener("click", restoreThreshold);
+  byId("no-positives").addEventListener("click", () => { byId("threshold-number").value = String(1 + Number.EPSILON); updateDecision(); });
   setProbe(probe);
+  restoreThreshold();
 })();

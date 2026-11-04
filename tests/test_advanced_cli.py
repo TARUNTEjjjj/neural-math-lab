@@ -63,7 +63,7 @@ class AdvancedCommandLineTests(unittest.TestCase):
         cls.base = Path(cls.directory.name)
         cls.environment = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", MPLCONFIGDIR=str(cls.base / "matplotlib"))
         cls.output = cls.base / "experiment"
-        cls.training = cls.run_command("experiment", "--samples", "120", "--epochs", "10", "--hidden", "3", "--seed", "11", "--output", str(cls.output))
+        cls.training = cls.run_command("experiment", "--samples", "120", "--epochs", "10", "--hidden", "3", "--seed", "11", "--fn-cost", "3", "--output", str(cls.output))
         if cls.training.returncode != 0:
             cls.directory.cleanup()
             raise AssertionError("Experiment failed:\n" + cls.training.stdout + cls.training.stderr)
@@ -82,11 +82,49 @@ class AdvancedCommandLineTests(unittest.TestCase):
                               capture_output=True, timeout=60)
 
     def test_experiment_outputs_complete_artifacts_and_evaluation_scope(self):
-        expected = {"pipeline.json", "experiment.json", "metrics.json", "history.csv", "learning.svg", "decision.svg", "report.html"}
+        expected = {"pipeline.json", "experiment.json", "metrics.json", "diagnostics.json", "history.csv", "learning.svg", "decision.svg", "report.html"}
         self.assertEqual({p.name for p in self.output.iterdir()}, expected)
         self.assertIn("72 training / 24 validation / 24 held-out test examples", self.training.stdout)
         self.assertIn("evaluated after model selection", self.training.stdout)
         self.assertIn("one synthetic split", self.training.stdout)
+        self.assertIn("Validation-selected decision threshold:", self.training.stdout)
+
+    def test_decision_export_uses_validation_optimum_and_frozen_test_threshold(self):
+        diagnostics = json.loads((self.output / "diagnostics.json").read_text())
+        self.assertEqual(diagnostics, self.document["diagnostics"])
+        for model in ("network", "baseline"):
+            summary = self.metrics["diagnostics"][model]
+            self.assertEqual(summary["threshold_selection"], diagnostics[model]["threshold_selection"])
+            for split in ("validation", "test"):
+                expected = {k: v for k, v in diagnostics[model][split].items()
+                            if k not in ("roc", "precision_recall", "reliability_bins")}
+                self.assertEqual(summary[split], expected)
+            self.assertNotIn("validation_predictions", summary)
+        self.assertEqual(diagnostics["selection_split"], "validation")
+        network, mean, scale, _ = load_pipeline(self.output / "pipeline.json")
+        data = self.document["data"]
+        X, y = np.asarray(data["X"]), np.asarray(data["y"])[:, 0]
+        val = data["val_idx"]
+        p = network.predict_proba(standardize(X[val], mean, scale))[:, 0]
+        # Independently enumerate prediction rules; do not reuse the selector.
+        candidates = set(p.tolist()) | {0.5, float(np.nextafter(1., np.inf))}
+        def key(t):
+            predicted = p >= t
+            cost = int(np.sum(predicted & (y[val] == 0))) + 3 * int(np.sum(~predicted & (y[val] == 1)))
+            return cost, abs(t - .5), -t
+        threshold = min(candidates, key=key)
+        selection = diagnostics["network"]["threshold_selection"]
+        self.assertEqual(selection["threshold"], threshold)
+        self.assertEqual(selection["total_cost"], key(threshold)[0])
+        test = data["test_idx"]
+        predicted = network.predict_proba(standardize(X[test], mean, scale))[:, 0] >= threshold
+        fp = int(np.sum(predicted & (y[test] == 0)))
+        fn = int(np.sum(~predicted & (y[test] == 1)))
+        frozen = diagnostics["network"]["test"]
+        self.assertEqual(frozen["threshold"], threshold)
+        self.assertEqual((frozen["fp"], frozen["fn"]), (fp, fn))
+        self.assertEqual(frozen["mean_cost"], (fp + 3 * fn) / len(test))
+        self.assertIn("--fp-cost 1.0 --fn-cost 3.0", self.report)
 
     def test_saved_pipeline_matches_every_test_prediction_and_metric(self):
         network, mean, scale, dataset = load_pipeline(self.output / "pipeline.json")
@@ -161,6 +199,24 @@ class AdvancedCommandLineTests(unittest.TestCase):
         self.assertIn("Standardized input = [[1. 0.]]", result.stdout)
         self.assertIn("p = sigmoid(z2) = [[0.731059]]", result.stdout)
 
+    def test_explain_sensitivity_and_local_approximation_match_independent_values(self):
+        network = Network(hidden=1, seed=7)
+        network.parameters = {"W1": np.array([[2.], [-1.]]), "b1": np.zeros((1, 1)),
+                              "W2": np.array([[3.]]), "b2": np.zeros((1, 1))}
+        path = self.base / "sensitivity-pipeline.json"
+        save_pipeline(network, [[10., 20.]], [[2., 5.]], "moons", path)
+        result = self.run_command("explain", "--model", str(path), "--input", "10", "20", "--delta", "0.01", "-0.02")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # At standardized origin: sigmoid'=1/4, tanh'=1; gradient=[.75,-.15].
+        self.assertIn("dp/d(raw x) = [[ 0.75 -0.15]]", result.stdout)
+        self.assertIn("First-order probability approximation = 0.510500000", result.stdout)
+        actual = 1 / (1 + math.exp(-3 * math.tanh(.014)))
+        self.assertIn("Actual displaced probability = {:.9f}".format(actual), result.stdout)
+        invalid = self.run_command("explain", "--model", str(path), "--input", "10", "20", "--delta", "nan", "0")
+        self.assertEqual(invalid.returncode, 2)
+        self.assertIn("delta must contain two finite", invalid.stderr)
+        self.assertNotIn("Traceback", invalid.stderr)
+
     def test_existing_experiment_directory_is_preserved(self):
         before = {p.name: p.read_bytes() for p in self.output.iterdir()}
         result = self.run_command("experiment", "--samples", "120", "--epochs", "1", "--output", str(self.output))
@@ -169,7 +225,7 @@ class AdvancedCommandLineTests(unittest.TestCase):
         self.assertEqual(before, {p.name: p.read_bytes() for p in self.output.iterdir()})
 
     def test_invalid_experiment_configuration_leaves_no_output(self):
-        for key, value in (("--samples", "20"), ("--l2", "-1"), ("--batch-size", "0"), ("--noise", "nan")):
+        for key, value in (("--samples", "20"), ("--l2", "-1"), ("--batch-size", "0"), ("--noise", "nan"), ("--fp-cost", "0"), ("--fn-cost", "inf")):
             output = self.base / (key[2:] + "-invalid")
             result = self.run_command("experiment", key, value, "--output", str(output))
             with self.subTest(key=key):

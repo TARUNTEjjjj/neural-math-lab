@@ -11,7 +11,9 @@
     "batch_size": 32,
     "l2": 0.001,
     "patience": 100,
-    "min_delta": 1e-05
+    "min_delta": 1e-05,
+    "fp_cost": 1.0,
+    "fn_cost": 1.0
   },
   "metrics": {
     "train": {
@@ -125,5 +127,190 @@
     "python": "3.9.6",
     "numpy": "2.0.2",
     "matplotlib": "3.9.4"
+  },
+  "diagnostics": {
+    "selection_split": "validation",
+    "decision_rule": "p >= threshold",
+    "bin_count": 10,
+    "network": {
+      "threshold_selection": {
+        "threshold": 0.6830711918697014,
+        "fp_cost": 1.0,
+        "fn_cost": 1.0,
+        "samples": 120,
+        "tp": 59,
+        "fp": 0,
+        "tn": 60,
+        "fn": 1,
+        "confusion_matrix": [
+          [
+            60,
+            0
+          ],
+          [
+            1,
+            59
+          ]
+        ],
+        "total_cost": 1.0,
+        "mean_cost": 0.008333333333333333,
+        "candidate_count": 122,
+        "tie_break": "lowest cost, then closest to 0.5, then higher threshold"
+      },
+      "validation": {
+        "threshold": 0.6830711918697014,
+        "fp_cost": 1.0,
+        "fn_cost": 1.0,
+        "samples": 120,
+        "tp": 59,
+        "fp": 0,
+        "tn": 60,
+        "fn": 1,
+        "confusion_matrix": [
+          [
+            60,
+            0
+          ],
+          [
+            1,
+            59
+          ]
+        ],
+        "total_cost": 1.0,
+        "mean_cost": 0.008333333333333333,
+        "accuracy": 0.9916666666666667,
+        "precision": 1.0,
+        "recall": 0.9833333333333333,
+        "specificity": 1.0,
+        "f1": 0.9915966386554622,
+        "predicted_positive": 59,
+        "brier": 0.012977783535588486,
+        "roc_auc": 0.9991666666666668,
+        "average_precision": 0.9992063492063492,
+        "ece": 0.04010633722211177
+      },
+      "test": {
+        "threshold": 0.6830711918697014,
+        "fp_cost": 1.0,
+        "fn_cost": 1.0,
+        "samples": 120,
+        "tp": 59,
+        "fp": 1,
+        "tn": 59,
+        "fn": 1,
+        "confusion_matrix": [
+          [
+            59,
+            1
+          ],
+          [
+            1,
+            59
+          ]
+        ],
+        "total_cost": 2.0,
+        "mean_cost": 0.016666666666666666,
+        "accuracy": 0.9833333333333333,
+        "precision": 0.9833333333333333,
+        "recall": 0.9833333333333333,
+        "specificity": 0.9833333333333333,
+        "f1": 0.9833333333333333,
+        "predicted_positive": 60,
+        "brier": 0.018007547426967255,
+        "roc_auc": 0.9975,
+        "average_precision": 0.9974656822195581,
+        "ece": 0.03052754458116564
+      }
+    },
+    "baseline": {
+      "threshold_selection": {
+        "threshold": 0.5,
+        "fp_cost": 1.0,
+        "fn_cost": 1.0,
+        "samples": 120,
+        "tp": 52,
+        "fp": 8,
+        "tn": 52,
+        "fn": 8,
+        "confusion_matrix": [
+          [
+            52,
+            8
+          ],
+          [
+            8,
+            52
+          ]
+        ],
+        "total_cost": 16.0,
+        "mean_cost": 0.13333333333333333,
+        "candidate_count": 122,
+        "tie_break": "lowest cost, then closest to 0.5, then higher threshold"
+      },
+      "validation": {
+        "threshold": 0.5,
+        "fp_cost": 1.0,
+        "fn_cost": 1.0,
+        "samples": 120,
+        "tp": 52,
+        "fp": 8,
+        "tn": 52,
+        "fn": 8,
+        "confusion_matrix": [
+          [
+            52,
+            8
+          ],
+          [
+            8,
+            52
+          ]
+        ],
+        "total_cost": 16.0,
+        "mean_cost": 0.13333333333333333,
+        "accuracy": 0.8666666666666667,
+        "precision": 0.8666666666666667,
+        "recall": 0.8666666666666667,
+        "specificity": 0.8666666666666667,
+        "f1": 0.8666666666666667,
+        "predicted_positive": 60,
+        "brier": 0.09917350709063757,
+        "roc_auc": 0.9419444444444445,
+        "average_precision": 0.9474748756229089,
+        "ece": 0.07779762036086109
+      },
+      "test": {
+        "threshold": 0.5,
+        "fp_cost": 1.0,
+        "fn_cost": 1.0,
+        "samples": 120,
+        "tp": 56,
+        "fp": 5,
+        "tn": 55,
+        "fn": 4,
+        "confusion_matrix": [
+          [
+            55,
+            5
+          ],
+          [
+            4,
+            56
+          ]
+        ],
+        "total_cost": 9.0,
+        "mean_cost": 0.075,
+        "accuracy": 0.925,
+        "precision": 0.9180327868852459,
+        "recall": 0.9333333333333333,
+        "specificity": 0.9166666666666666,
+        "f1": 0.9256198347107438,
+        "predicted_positive": 61,
+        "brier": 0.05964550020758348,
+        "roc_auc": 0.9763888888888889,
+        "average_precision": 0.9753247817286544,
+        "ece": 0.03691660467602579
+      }
+    }
   }
 }

@@ -12,6 +12,7 @@ from string import Template
 import numpy as np
 
 from .datasets import standardize
+from .diagnostics import input_sensitivity
 from .storage import model_document, save_pipeline
 
 
@@ -35,6 +36,42 @@ def _table(headers, rows, css=""):
     def cells(tag, values):
         return "".join("<{}>{}</{}>".format(tag, html.escape(str(v)), tag) for v in values)
     return '<table class="' + css + '"><thead><tr>' + cells("th", headers) + "</tr></thead><tbody>" + "".join("<tr>" + cells("td", row) + "</tr>" for row in rows) + "</tbody></table>"
+
+
+def _diagnostic_tables(diagnostics):
+    """Render numerical evidence even without JavaScript or a canvas."""
+    def number(value, places=4):
+        return "Undefined" if value is None else format(value, ".{}f".format(places))
+
+    def threshold(value):
+        return "Above 1 (all negative)" if value > 1 else str(value)
+
+    summary, evidence = [], []
+    for key, title in (("network", "Neural network"), ("baseline", "Linear baseline")):
+        item = diagnostics[key]
+        selected, test, val = item["threshold_selection"], item["test"], item["validation"]
+        summary.append([title, threshold(selected["threshold"]), test["fp"], test["fn"],
+                        number(test["mean_cost"]), number(test["accuracy"]),
+                        number(test["roc_auc"]), number(test["average_precision"]), number(test["brier"])])
+        content = '<div class="diagnostic-static"><h3>' + title + ' · saved validation diagnostics</h3>'
+        content += '<div class="table-scroll">' + _table(["Selected threshold", "FP cost", "FN cost", "Validation mean cost", "Candidates"],
+                          [[threshold(selected["threshold"]), selected["fp_cost"], selected["fn_cost"], number(selected["mean_cost"]), selected["candidate_count"]]]) + '</div>'
+        content += '<p class="caption">ROC AUC: {} · Average precision: {} · Brier: {} · ECE: {}. Curves below use validation scores.</p>'.format(
+            number(val["roc_auc"]), number(val["average_precision"]), number(val["brier"]), number(val["ece"]))
+        content += '<h4>Reliability bins</h4><div class="table-scroll">' + _table(
+            ["Bin (left inclusive)", "Count", "Mean p", "Positive fraction", "Absolute gap"],
+            [["[{:.1f}, {:.1f}{}".format(b["lower"], b["upper"], "]" if i == len(val["reliability_bins"]) - 1 else ")"),
+              b["count"], number(b["mean_probability"]), number(b["fraction_positive"]), number(b["absolute_gap"])]
+             for i, b in enumerate(val["reliability_bins"])]) + '</div>'
+        content += '<p class="caption">Empty bins have undefined means and are omitted from the plot. ECE is the count-weighted absolute bin gap.</p>'
+        content += '<details><summary>ROC points</summary><div class="curve-points">' + _table(
+            ["Threshold", "False-positive rate", "True-positive rate", "TP", "FP"],
+            [[threshold(r["threshold"]), number(r["fpr"]), number(r["tpr"]), r["tp"], r["fp"]] for r in val["roc"]]) + '</div></details>'
+        content += '<details><summary>Precision–recall points</summary><div class="curve-points">' + _table(
+            ["Threshold", "Recall", "Precision", "TP", "FP"],
+            [[threshold(r["threshold"]), number(r["recall"]), number(r["precision"]), r["tp"], r["fp"]] for r in val["precision_recall"]]) + '</div></details></div>'
+        evidence.append(content)
+    return _table(["Model", "Selected τ", "FP", "FN", "Mean cost", "Accuracy", "ROC AUC", "AP", "Brier"], summary), "".join(evidence)
 
 
 def _figures(result, output, bounds):
@@ -91,9 +128,26 @@ def write_experiment_report(result, output):
         {"id": int(idx), "input": data["X"][idx].tolist(), "target": int(data["y"][idx, 0]), "p": float(p)}
         for idx, p in zip(data["test_idx"], predictions)
     ]
+    probe_inputs = data["X"][data["test_idx"][:8]]
+    document["sensitivity_probes"] = [
+        {"input": row.tolist(), "gradient": gradient.tolist()}
+        for row, gradient in zip(probe_inputs, input_sensitivity(network, probe_inputs, data["mean"], data["scale"]))
+    ]
+    (output / "diagnostics.json").write_text(json.dumps(serializable(result["diagnostics"]), indent=2, allow_nan=False) + "\n", encoding="utf-8")
     save_pipeline(network, data["mean"], data["scale"], config["dataset"], output / "pipeline.json")
     (output / "experiment.json").write_text(json_text(document) + "\n", encoding="utf-8")
     metrics = {k: document[k] for k in ("config", "metrics", "baseline", "best_epoch", "stopped_epoch", "stop_reason", "seeds", "environment")}
+    # Keep the quick summary readable. Full curves, bins, and row-level scores
+    # live in diagnostics.json and the self-contained experiment document.
+    diagnostics = document["diagnostics"]
+    metrics["diagnostics"] = {k: diagnostics[k] for k in ("selection_split", "decision_rule", "bin_count")}
+    for model in ("network", "baseline"):
+        metrics["diagnostics"][model] = {"threshold_selection": diagnostics[model]["threshold_selection"]}
+        for split in ("validation", "test"):
+            metrics["diagnostics"][model][split] = {
+                k: v for k, v in diagnostics[model][split].items()
+                if k not in ("roc", "precision_recall", "reliability_bins")
+            }
     (output / "metrics.json").write_text(json.dumps(serializable(metrics), indent=2, allow_nan=False) + "\n", encoding="utf-8")
     with (output / "history.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(result["history"][0]), lineterminator="\n")
@@ -124,11 +178,12 @@ def write_experiment_report(result, output):
     error_table = _table(["Row ID", "x1", "x2", "Target", "Output p", "Predicted"], [[r["id"], "{:.4f}".format(r["input"][0]), "{:.4f}".format(r["input"][1]), r["target"], "{:.6f}".format(r["p"]), int(r["p"] >= 0.5)] for r in errors[:50]], "error-table") if errors else '<p class="empty-state">No misclassified examples in this test split. This does not imply a zero population error rate.</p>'
     if len(errors) > 50:
         error_table += '<p class="caption">Showing 50 of {} misclassified examples. Full test predictions are in experiment.json.</p>'.format(len(errors))
+    diagnostic_summary, diagnostic_tables = _diagnostic_tables(result["diagnostics"])
     assets = Path(__file__).parent / "assets"
     script = (assets / "experiment.js").read_text(encoding="utf-8")
     script_hash = base64.b64encode(hashlib.sha256(script.encode("utf-8")).digest()).decode("ascii")
     svg = (output / "learning.svg").read_text(encoding="utf-8")
-    command = "python -m neural_math_lab experiment " + " ".join("--{} {}".format(key.replace("_", "-"), config[key]) for key in ("dataset", "samples", "noise", "hidden", "seed", "epochs", "learning_rate", "optimizer", "batch_size", "l2", "patience", "min_delta")) + " --output runs/new-experiment"
+    command = "python -m neural_math_lab experiment " + " ".join("--{} {}".format(key.replace("_", "-"), config[key]) for key in ("dataset", "samples", "noise", "hidden", "seed", "epochs", "learning_rate", "optimizer", "batch_size", "l2", "patience", "min_delta", "fp_cost", "fn_cost")) + " --output runs/new-experiment"
     replacements = {
         "CSS": (assets / "experiment.css").read_text(encoding="utf-8"),
         "SCRIPT": script, "SCRIPT_HASH": script_hash, "DATA": json_text(document).replace("<", "\\u003c"),
@@ -137,6 +192,7 @@ def write_experiment_report(result, output):
         "METRIC_CARDS": cards, "STOP_SUMMARY": "Stopped at epoch " + str(result["stopped_epoch"]),
         "EARLY_STOP_TEXT": "This run stopped because: {}. The saved model restores epoch {}. The selected checkpoint is included in the replay.".format(html.escape(result["stop_reason"].replace("_", " ")), result["best_epoch"]),
         "STATIC_FIGURE": svg[svg.index("<svg"):], "COMPARISON_TABLE": comparison,
+        "DIAGNOSTIC_SUMMARY": diagnostic_summary, "DIAGNOSTIC_TABLES": diagnostic_tables,
         "CONFUSION": confusion, "SPLIT_TABLE": split_table, "ERROR_TABLE": error_table,
         "REPRO_COMMAND": html.escape(command), "CONFIG": html.escape(json.dumps(serializable({"config": config, "seeds": result["seeds"], "environment": environment}), indent=2)),
     }
