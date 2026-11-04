@@ -1,7 +1,9 @@
 """Readable model files: JSON numbers only, never executable pickle objects."""
 
 import json
+import os
 from pathlib import Path
+import tempfile
 
 import numpy as np
 
@@ -17,7 +19,31 @@ def model_document(network):
 
 
 def save_model(network, path):
-    Path(path).write_text(json.dumps(model_document(network), indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    document = model_document(network)
+    _network_from_document(document)
+    _write_document(document, path)
+
+
+def _write_document(document, path):
+    """Replace only after a complete JSON file has been written beside the target."""
+    encoded = json.dumps(document, indent=2, allow_nan=False) + "\n"
+    path = Path(path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                         prefix="." + path.name + ".", suffix=".tmp",
+                                         delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def _read_document(path):
@@ -66,7 +92,7 @@ def save_pipeline(network, mean, scale, dataset, path):
            "standardizer": {"mean": np.asarray(mean).tolist(), "scale": np.asarray(scale).tolist()},
            "dataset": dataset}
     _pipeline_from_document(doc)
-    Path(path).write_text(json.dumps(doc, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    _write_document(doc, path)
 
 
 def _pipeline_from_document(doc):
