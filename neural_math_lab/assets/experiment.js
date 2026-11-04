@@ -54,8 +54,25 @@
     const actual = infer(parameters, raw.map((v, i) => v + delta[i]), mean, scale, linear).p;
     return { p, gradient, approximation, actual, absolute_error: Math.abs(actual - approximation) };
   }
+  // Report parameters and coordinate arrays are immutable. Retain only the
+  // current grid: moving the probe or changing point visibility does not alter
+  // the model, so it must not repeat thousands of identical forward passes.
+  function createBoundaryGridCache() {
+    let previous = null, points = null;
+    return (parameters, bounds, mean, scale, linear = false, nx = 85, ny = 53) => {
+      const inputs = [parameters, bounds, mean, scale, linear, nx, ny];
+      if (previous && inputs.every((value, i) => value === previous[i])) return points;
+      points = Array.from({ length: ny + 1 }, (_, j) =>
+        Array.from({ length: nx + 1 }, (_, i) => infer(parameters, [
+          bounds[0] + (bounds[1] - bounds[0]) * i / nx,
+          bounds[3] - (bounds[3] - bounds[2]) * j / ny,
+        ], mean, scale, linear).p));
+      previous = inputs;
+      return points;
+    };
+  }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { infer, inputSensitivity, thresholdMetrics, sensitivityProbe };
+    module.exports = { infer, inputSensitivity, thresholdMetrics, sensitivityProbe, createBoundaryGridCache };
     return;
   }
   const data = JSON.parse(document.getElementById("experiment-data").textContent);
@@ -79,6 +96,7 @@
   const parameters = () => isLinear() ? data.baseline.parameters : selectedFrame().parameters;
   const predict = (point) => infer(parameters(), point, data.data.mean, data.data.scale, isLinear());
   const fixed = (n) => n.toFixed(4);
+  const boundaryGrid = createBoundaryGridCache();
 
   function stop() {
     if (timer !== null) clearInterval(timer);
@@ -94,14 +112,7 @@
   function drawBoundary() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const nx = 85, ny = 53, dx = (box.right - box.left) / nx, dy = (box.bottom - box.top) / ny;
-    const points = [];
-    for (let j = 0; j <= ny; j++) {
-      const row = [];
-      for (let i = 0; i <= nx; i++) {
-        row.push(predict([bounds[0] + (bounds[1] - bounds[0]) * i / nx, bounds[3] - (bounds[3] - bounds[2]) * j / ny]).p);
-      }
-      points.push(row);
-    }
+    const points = boundaryGrid(parameters(), bounds, data.data.mean, data.data.scale, isLinear(), nx, ny);
     for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
       ctx.fillStyle = color((points[j][i] + points[j + 1][i] + points[j][i + 1] + points[j + 1][i + 1]) / 4);
       ctx.fillRect(box.left + i * dx, box.top + j * dy, dx + 0.6, dy + 0.6);

@@ -3,7 +3,49 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { infer, inputSensitivity, thresholdMetrics, sensitivityProbe } = require("../neural_math_lab/assets/experiment.js");
+const { createHash } = require("node:crypto");
+const { infer, inputSensitivity, thresholdMetrics, sensitivityProbe, createBoundaryGridCache } = require("../neural_math_lab/assets/experiment.js");
+
+test("boundary grid cache reuses unchanged models and preserves every forward prediction", () => {
+  const model = { W1: [[1, -1], [0.5, 2]], b1: [[0.1, -0.2]], W2: [[0.7], [-0.4]], b2: [[0.3]] };
+  const bounds = [-2, 3, -1, 4], mean = [[1, -1]], scale = [[2, 4]];
+  const grid = createBoundaryGridCache();
+  const first = grid(model, bounds, mean, scale, false, 10, 8);
+  assert.equal(first.length, 9);
+  for (let j = 0; j <= 8; j++) for (let i = 0; i <= 10; i++) {
+    assert.equal(first[j][i], infer(model, [-2 + 5 * i / 10, 4 - 5 * j / 8], mean, scale).p);
+  }
+  assert.strictEqual(grid(model, bounds, mean, scale, false, 10, 8), first);
+});
+
+test("boundary grid invalidates for replay, baseline, standardizer, bounds and resolution changes", () => {
+  const firstModel = { W1: [[1], [0.5]], b1: [[0]], W2: [[1]], b2: [[0]] };
+  const nextModel = { ...firstModel, b2: [[2]] };
+  const baseline = { W: [[2], [-3]], b: [[0.5]] };
+  const bounds = [-2, 3, -1, 4], mean = [[1, -1]], scale = [[2, 4]];
+  const grid = createBoundaryGridCache();
+  const a = grid(firstModel, bounds, mean, scale, false, 10, 8);
+  const b = grid(nextModel, bounds, mean, scale, false, 10, 8);
+  assert.notStrictEqual(a, b);
+  assert.notEqual(a[0][0], b[0][0]);
+  assert.deepEqual(grid(firstModel, bounds, mean, scale, false, 10, 8), a);
+  const linear = grid(baseline, bounds, mean, scale, true, 10, 8);
+  assert.equal(linear[0][0], infer(baseline, [-2, 4], mean, scale, true).p);
+  const variants = [
+    [baseline, [-3, 3, -1, 4], mean, scale, true, 10, 8],
+    [baseline, bounds, [[0, 0]], scale, true, 10, 8],
+    [baseline, bounds, mean, [[1, 1]], true, 10, 8],
+    [baseline, bounds, mean, scale, true, 11, 8],
+  ];
+  for (const args of variants) {
+    const before = grid(baseline, bounds, mean, scale, true, 10, 8);
+    const changed = grid(...args);
+    assert.notStrictEqual(changed, before);
+    assert.deepEqual(changed, createBoundaryGridCache()(...args));
+  }
+  const changed = grid(baseline, bounds, mean, scale, true, 10, 9);
+  assert.equal(changed.length, 10);
+});
 
 test("browser inference follows a hand-calculated standardized hidden layer", () => {
   const weights = { W1: [[1, -1], [0.5, 2]], b1: [[0.1, -0.2]], W2: [[0.7], [-0.4]], b2: [[0.3]] };
@@ -34,6 +76,15 @@ test("extreme positive and negative logits remain finite", () => {
 
 for (const dataset of ["moons", "circles"]) {
   const file = path.join(__dirname, "..", "examples", dataset, "experiment.json");
+  test(dataset + ": offline report embeds the current runtime with a matching CSP hash", () => {
+    const script = fs.readFileSync(path.join(__dirname, "..", "neural_math_lab", "assets", "experiment.js"), "utf8");
+    const report = fs.readFileSync(path.join(__dirname, "..", "examples", dataset, "report.html"), "utf8");
+    const embedded = report.match(/<script>([\s\S]*?)<\/script>/g);
+    assert.deepEqual(embedded, ["<script>" + script + "</script>"]);
+    const hash = createHash("sha256").update(script).digest("base64");
+    assert.ok(report.includes("script-src 'sha256-" + hash + "'"));
+    assert.ok(!/<script[^>]+src\s*=/i.test(report));
+  });
   test(dataset + ": browser probabilities match every saved Python test prediction", () => {
     const run = JSON.parse(fs.readFileSync(file, "utf8"));
     const chosen = run.checkpoints.find((frame) => frame.epoch === run.best_epoch);

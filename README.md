@@ -54,6 +54,8 @@ The default output directory is `runs/<dataset>`, so `experiment --dataset circl
 
 The browser's prediction calculations are checked against the saved Python predictions. The exportable SVG figures and full machine-readable history remain available alongside the report.
 
+Point inspection and split visibility reuse the current boundary grid instead of running thousands of identical predictions again. Changing a checkpoint or model rebuilds that grid; the cache keeps only one grid and does not change the recorded mathematics.
+
 ### Change one setting at a time
 
 ```sh
