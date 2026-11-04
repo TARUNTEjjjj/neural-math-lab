@@ -83,11 +83,23 @@ distinct scores, plus a threshold that predicts every row as negative. The
 smallest score already represents an all-positive rule. Equal scores must
 enter together; their row order cannot decide which class they receive.
 
-The implementation also includes 0.5 as a candidate. It minimizes cost, then
-breaks exact cost ties by choosing the candidate closest to 0.5, then the higher
+The implementation also includes 0.5 as a candidate. It minimizes cost up to
+floating-point roundoff, then breaks cost ties by choosing the candidate
+closest to 0.5, then the higher
 threshold if both distance and cost tie. This is a reproducible convention,
 not a claim that 0.5 has special optimality. The search is exhaustive over the
 validation decision patterns; it cannot promise the best threshold on new data.
+
+Computers represent these numbers in binary floating point: `3 * 0.1` can be
+slightly greater than `0.3`, and `0.5 - 0.2` can differ from `0.8 - 0.5`.
+For selection, costs within `8 × float64 epsilon` (about `1.78e-15`, relative)
+of the smallest computed cost are treated as tied. The same rule applies to
+distance from 0.5 within that group. Comparisons always use the group's fixed
+minimum, so candidate order cannot accumulate tolerance. There is no absolute
+tolerance: zero cost beats every positive cost, however small, and an exact
+threshold of 0.5 beats an adjacent float when costs tie. Differences beyond
+this roundoff tolerance still determine the winner. Recorded costs retain their
+computed values; the tie tolerance affects selection, not cost calculation.
 
 For the all-negative rule, the stored threshold is `np.nextafter(1.0, np.inf)`:
 the smallest representable float64 number above 1. This finite sentinel is

@@ -5,6 +5,8 @@ its output. ``run_experiment`` supplies validation rows for threshold selection
 and evaluates the held-out rows only after fixing that decision rule.
 """
 
+import math
+
 import numpy as np
 
 from .core import Network, _integer, _matmul, _matrix, _targets
@@ -15,6 +17,10 @@ from .datasets import _bounded_real, standardize
 ABOVE_ONE = float(np.nextafter(1.0, np.inf))
 MAX_COST = 1_000_000.0
 TIE_BREAK = "lowest cost, then closest to 0.5, then higher threshold"
+# A few float64 rounding steps must not choose between mathematically tied
+# costs or symmetric distances. No absolute floor: zero still beats any
+# positive cost, including costs much smaller than machine epsilon.
+TIE_REL_TOL = 8 * np.finfo(np.float64).eps
 
 
 def _scores(y, p):
@@ -65,8 +71,10 @@ def select_threshold(y, p, fp_cost=1.0, fn_cost=1.0):
     Enumerate distinct scores plus 0.5 and an above-one sentinel. With the rule
     ``p >= threshold``, this includes all distinct classification patterns,
     including all-positive and all-negative. Cost ties prefer the candidate
-    closest to 0.5, then the higher threshold. This is a deterministic convention,
-    not a claim that the selected threshold generalizes to another population.
+    closest to 0.5, then the higher threshold. Costs and distances within eight
+    float64 epsilons of their respective minimum (relative, no absolute floor)
+    are tied. This is a deterministic convention, not a claim that the selected
+    threshold generalizes to another population.
     """
     y, p = _scores(y, p)
     fp_cost, fn_cost = _cost(fp_cost, "fp_cost"), _cost(fn_cost, "fn_cost")
@@ -76,9 +84,18 @@ def select_threshold(y, p, fp_cost=1.0, fn_cost=1.0):
     if not np.any(thresholds == 0.5):
         middle = p >= 0.5
         candidates.append((0.5, int(y[middle].sum()), int(middle.sum() - y[middle].sum())))
-    threshold, tp, fp = min(candidates, key=lambda item: (
-        fp_cost * item[2] + fn_cost * (positives - item[1]),
-        abs(item[0] - 0.5), -item[0]))
+    costs = [fp_cost * fp + fn_cost * (positives - tp) for _, tp, fp in candidates]
+    minimum_cost = min(costs)
+    cost_ties = [item for item, cost in zip(candidates, costs)
+                 if math.isclose(cost, minimum_cost, rel_tol=TIE_REL_TOL, abs_tol=0.0)]
+    # Compare with fixed minima, not the previous candidate: approximate
+    # equality is not transitive and must not drift with enumeration order.
+    minimum_distance = min(abs(item[0] - 0.5) for item in cost_ties)
+    threshold, tp, fp = max(
+        (item for item in cost_ties
+         if math.isclose(abs(item[0] - 0.5), minimum_distance,
+                         rel_tol=TIE_REL_TOL, abs_tol=0.0)),
+        key=lambda item: item[0])
     result = _count_document(len(y), tp, fp, negatives - fp, positives - tp,
                              threshold, fp_cost, fn_cost)
     result.update({"candidate_count": len(candidates), "tie_break": TIE_BREAK})

@@ -94,7 +94,9 @@ def objective_and_gradients(network, X, y, l2=0.001):
     try:
         with np.errstate(over="raise", invalid="raise", under="ignore"):
             for name in _weight_names(network.parameters) if l2 else ():
-                weight = network.parameters[name]
+                # Match the float64 arithmetic used for loss and derivatives,
+                # without replacing the learner's exposed parameter containers.
+                weight = _matrix(network.parameters[name], "parameter " + name)
                 value += 0.5 * l2 * float(np.sum(weight ** 2))
                 gradients[name] = gradients[name] + l2 * weight
     except FloatingPointError as exc:

@@ -83,6 +83,42 @@ class OptimizerTests(unittest.TestCase):
 
 
 class RegularizationTests(unittest.TestCase):
+    def test_nested_list_parameters_match_float64_objective_without_mutation(self):
+        network = Network(hidden=3, seed=11)
+        X = np.array([[.2, -.4], [.7, .3], [-.1, .8]])
+        y = np.array([[0.], [1.], [1.]])
+        expected_loss = network.loss(X, y)
+        expected_objective, expected_gradients = objective_and_gradients(network, X, y, l2=.17)
+        network.parameters = {name: value.tolist() for name, value in network.parameters.items()}
+        originals = dict(network.parameters)
+        before = {name: [row[:] for row in value] for name, value in originals.items()}
+
+        objective, gradients = objective_and_gradients(network, X, y, l2=.17)
+
+        self.assertAlmostEqual(network.loss(X, y), expected_loss, places=14)
+        self.assertAlmostEqual(objective, expected_objective, places=14)
+        for name in network.parameters:
+            np.testing.assert_allclose(gradients[name], expected_gradients[name], atol=1e-14)
+            self.assertIs(network.parameters[name], originals[name])
+            self.assertEqual(network.parameters[name], before[name])
+
+    def test_integer_weights_are_squared_in_float64_without_mutation(self):
+        network = Network(hidden=2, seed=7)
+        weights = np.full((2, 2), 200, dtype=np.int16)
+        network.parameters["W1"] = weights
+        network.parameters["W2"][:] = 0
+        X, y = np.zeros((2, 2)), np.array([[0.], [1.]])
+
+        with np.errstate(all="raise"):
+            objective, gradients = objective_and_gradients(network, X, y, l2=.001)
+
+        # Four weights contribute (lambda / 2) * 4 * 200**2 = 80.
+        self.assertAlmostEqual(objective, math.log(2) + 80, places=13)
+        np.testing.assert_allclose(gradients["W1"], np.full((2, 2), .2), atol=1e-14)
+        self.assertIs(network.parameters["W1"], weights)
+        self.assertEqual(weights.dtype, np.dtype(np.int16))
+        np.testing.assert_array_equal(weights, np.full((2, 2), 200, dtype=np.int16))
+
     def test_disabled_l2_does_not_square_large_but_unused_weights(self):
         network = Network(hidden=2, seed=7)
         network.parameters["W1"][:] = 1e200

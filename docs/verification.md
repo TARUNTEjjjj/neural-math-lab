@@ -1,5 +1,24 @@
 # Release verification
 
+## Numerical review fixes — 5 November 2026
+
+The full local suite passed **143 Python tests** and **19 Node.js tests** after
+fixing two reproduced review findings. Eight added regressions cover:
+
+- L2 arithmetic with learner-supplied nested lists and integer matrices. The
+  regularizer now uses validated float64 values without replacing or mutating
+  the exposed parameter containers. The integer fixture previously returned a
+  negative objective; it now matches `log(2) + 80`.
+- Decimal cost scaling, symmetric threshold distances, genuine cost differences,
+  zero versus tiny positive cost, the exact 0.5 candidate, and comparisons
+  anchored to the minimum so approximate ties cannot chain together.
+
+The reproduced failures were observed before their fixes. The separate numerical
+gradient check passed with maximum absolute error about `1.10e-11`. Reselecting
+thresholds from the committed moons and circles validation scores reproduced
+all four saved selections exactly, including the linear baselines; the example
+artifacts did not need regeneration. No browser runtime or layout changed.
+
 ## Decision lab release (0.3) — 5 November 2026
 
 Checked locally on macOS Apple Silicon with Python 3.9.6, NumPy 2.0.2 and
