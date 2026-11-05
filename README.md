@@ -6,7 +6,7 @@ This private learning project belongs to [TARUNTEjjjj](https://github.com/TARUNT
 
 ## Open a finished experiment first
 
-Download or clone the repository and open one of these files locally in a browser:
+Use the [hosted learning website](https://neural-math-lab.pages.dev/) in Chrome, or download/clone the repository and open one of these files locally in a browser:
 
 - **[Moons experiment](examples/moons/report.html):** two curved classes, checkpoint replay, and held-out evaluation.
 - **[Circles experiment](examples/circles/report.html):** concentric classes that make the difference from a straight-line baseline visible.
@@ -156,7 +156,7 @@ python -m unittest discover -s tests -v
 node --test tests/test_*.js
 ```
 
-Node.js 22 or newer is recommended for the browser-logic tests; it is not needed for Python training or for opening a report. No npm dependencies are required.
+Node.js 22 or newer is required for the website build checks. Run `npm ci --ignore-scripts` first; the build dependencies render the learning guides and equations before publication. Node and npm are not needed for Python training or for using a report.
 
 Tests cover independently computed derivatives, numerical stability, optimizer arithmetic, regularization gradients, split disjointness, training-only scaling, test-data isolation, best-checkpoint restoration, JSON pipeline round trips, real CLI runs, report artifacts, and browser/Python prediction agreement. The central-difference gradient checks calculate their reference values from perturbed losses rather than reusing backpropagation.
 
@@ -186,4 +186,15 @@ The explanations and implementation are original. Further reading:
 - [NumPy: `logaddexp`](https://numpy.org/doc/stable/reference/generated/numpy.logaddexp.html), used for stable loss calculations.
 - [PyTorch: automatic differentiation](https://docs.pytorch.org/tutorials/beginner/basics/autogradqs_tutorial.html), for comparison after understanding the manual version.
 
-The repository is intended to remain private unless its owner chooses otherwise. There is no public deployment or telemetry. Dependencies have their own licenses. XOR, moons, and circles are generated locally; no third-party dataset is redistributed.
+The repository remains private. The public Cloudflare Pages site serves only the learning pages, synthetic example reports, and their required display assets. Browser-delivered HTML, JavaScript, data and weights are necessarily readable by visitors; the Python package source, Git history and private repository are not published. The application has no telemetry or user accounts. Dependencies have their own licenses. XOR, moons, and circles are generated locally; no third-party dataset is redistributed.
+
+### Build and publish the learning website
+
+```sh
+npm ci --ignore-scripts
+npm test
+npm run build
+npx wrangler pages deploy dist --project-name neural-math-lab --branch main
+```
+
+`scripts/build-site.cjs` uses an explicit allowlist and creates `dist/`: a learning home, three reports, eight linked maths/exercise guides, pre-rendered equations with local fonts, and a real 404 page. Report runtime bytes and embedded experiment data are preserved. Never deploy the repository root or entire `examples/` directory. The build requires no Cloudflare credentials; publishing uses Wrangler's authenticated session. This is a Direct Upload Pages project: GitHub pushes run verification but do not automatically publish. Repeat the build and deploy command to update the live site.

@@ -1,5 +1,40 @@
 # Release verification
 
+## Cloudflare Pages website — 5 November 2026
+
+The public learning site is served at <https://neural-math-lab.pages.dev/>.
+The GitHub repository remains private. Publication uses an allowlisted `dist/`
+build, not the source checkout. It includes a learning home, three reports,
+eight linked guides, local equation fonts and a custom 404 page. KaTeX renders
+equations and accessible MathML during the build; it does not run in visitors'
+browsers. The original report scripts, synthetic data and inline-script CSP
+hashes are preserved exactly.
+
+All **40 Node.js tests** passed, including six website build regressions. These
+check the public file allowlist, every local link and fragment, math rendering,
+bad-equation failures, report/data preservation, and output-directory safety.
+The link crawl caught two incorrect home-page anchors, which were corrected.
+The dependency audit reported no known vulnerabilities at verification time.
+The unchanged Python mathematics suite is also run by the updated CI workflow.
+
+Twenty live HTTP checks passed: the home, all three labs, all eight guides,
+stylesheet/font assets, and five missing/private paths. Successful responses
+matched the local build byte for byte and included the configured security
+headers. Source probes for Python, Git configuration, package metadata and
+separate experiment JSON returned the actual 404 page.
+
+Chrome loaded the production domain and successfully applied and undid a
+gradient step (moons objective 0.889712 → 0.8895071 → 0.889712). Live browser
+checks also exercised baseline/replay switching, the raw-point inspector,
+threshold restoration, a full-gradient update, invalid-input recovery,
+reset, and the circles sandbox. The selected moons model returned 0.538760
+at raw coordinates (0.5, 0.2). Mobile checks at 320 and 390 pixels found no
+page-wide overflow in the tested home, guide and lab views, including the
+expanded slice table. The optimization guide rendered 75 equations without
+math errors. No application console warnings or errors occurred in the
+tested live interactions. These are functional checks, not a concurrent-user
+load test.
+
 ## Gradient lab release (0.4) — 5 November 2026
 
 The complete local suite passed **147 Python tests** and **34 Node.js tests**.

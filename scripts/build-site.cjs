@@ -1,0 +1,111 @@
+"use strict";
+
+// Publish an explicit allowlist, never the checkout or the whole examples folder.
+const fs = require("node:fs");
+const path = require("node:path");
+const MarkdownIt = require("markdown-it");
+const katex = require("katex");
+const texmath = require("markdown-it-texmath");
+const ROOT = path.resolve(__dirname, "..");
+const LESSONS = {
+  mathematics: "The network, from first principles",
+  exercises: "First principles · exercises",
+  "advanced-mathematics": "Training beyond XOR",
+  "advanced-exercises": "Training · exercises",
+  "decision-mathematics": "Decisions, ranking & calibration",
+  "decision-exercises": "Decisions · exercises",
+  "optimization-mathematics": "Gradients & optimization",
+  "optimization-exercises": "Optimization · exercises"
+};
+const CSP = "default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'";
+const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
+const links = () => Object.entries(LESSONS).map(([slug, title]) => `<li><a href="/learn/${slug}/">${title}</a></li>`).join("");
+const header = `<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="site-brand" href="/">∇ Neural Math Lab</a><nav class="site-nav" aria-label="Main navigation"><a href="/#experiments">Experiments</a><a href="/#learning-path">Maths guides</a><a href="/labs/moons/#gradient-lab">Gradient lab</a></nav></header>`;
+const footer = `<footer class="site-footer"><span>Neural Math Lab · Learn through experiments.</span><span>Calculations stay in your browser · No sign-in required</span></footer>`;
+
+function page(title, content, extraHead = "") {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${CSP}"><title>${escape(title)} · Neural Math Lab</title><link rel="stylesheet" href="/site.css">${extraHead}</head><body>${header}${content}${footer}</body></html>`;
+}
+
+function renderLesson(slug, source) {
+  // Source-file mentions remain readable, but private Python files aren't exposed.
+  const prepared = source.replace(/\[([^\]]+)\]\(\.\.\/neural_math_lab\/[^)]+\)/g, "$1")
+    .replace(/\]\(([\w-]+)\.md(#[^)]*)?\)/g, (_, target, hash = "") => {
+      if (!Object.hasOwn(LESSONS, target)) throw new Error("Unknown lesson: " + target);
+      return `](/learn/${target}/${hash})`;
+    });
+  const md = new MarkdownIt({ html: false }).use(texmath, {
+    engine: katex, delimiters: ["dollars", "brackets"],
+    katexOptions: { throwOnError: true, trust: false, output: "htmlAndMathml", strict: "error" }
+  });
+  md.renderer.rules.table_open = () => '<div class="lesson-table"><table>';
+  md.renderer.rules.table_close = () => '</table></div>';
+  const tokens = md.parse(prepared, {});
+  const headings = [];
+  const ids = new Set();
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].type === "heading_open") {
+      const label = tokens[i + 1].content;
+      let id = label.toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-");
+      const base = id; let suffix = 1;
+      while (ids.has(id)) id = base + "-" + suffix++;
+      ids.add(id); tokens[i].attrSet("id", id);
+      if (tokens[i].tag === "h2") headings.push(`<li><a href="#${id}">${escape(label)}</a></li>`);
+    }
+  }
+  function verifyMath(items) {
+    for (const token of items) {
+      if (token.type.startsWith("math")) katex.renderToString(token.content, { throwOnError: true, trust: false, strict: "error", displayMode: token.block });
+      if (token.children) verifyMath(token.children);
+    }
+  }
+  verifyMath(tokens); // texmath otherwise turns a rendering error into visible text.
+  const rendered = md.renderer.render(tokens, md.options, {});
+  return page(LESSONS[slug], `<main id="main" class="site-main lesson-layout"><article class="lesson-content"><p class="eyebrow">THE MATHS / LEARNING NOTES</p>${rendered}<p><a class="button" href="/labs/moons/#gradient-lab">Try the gradient lab →</a></p></article><aside class="lesson-sidebar"><h2>On this page</h2><ol>${headings.join("")}</ol><h2>Keep learning</h2><ul>${links()}</ul></aside></main>`, '<link rel="stylesheet" href="/assets/katex/katex.min.css">');
+}
+
+function hostedReport(name, original) {
+  const nav = `<nav class="hosted-nav" aria-label="Learning website"><a href="/">← Learning home</a><a href="/labs/moons/">Moons</a><a href="/labs/circles/">Circles</a><a href="/labs/xor/">XOR</a><a href="/learn/optimization-mathematics/">Maths guides</a></nav>`;
+  const style = '.hosted-nav{display:flex;flex-wrap:wrap;gap:12px 24px;padding:16px max(16px,calc((100% - 1280px)/2));background:#193e3b;color:#fff;font:600 13px system-ui}.hosted-nav a{color:#fff;text-decoration:none}.hosted-nav a:hover{text-decoration:underline}.hosted-nav a:focus-visible{outline:2px solid #fff;outline-offset:4px}';
+  let html = original.replace("</style>", style + "</style>");
+  html = name === "xor" ? html.replace("<main>", nav + "<main>") : html.replace("<body>", "<body>" + nav);
+  html = html.replace('href="#" class="brand"', 'href="/" class="brand"');
+  for (const [slug, title] of Object.entries(LESSONS)) {
+    html = html.replaceAll(`<code>docs/${slug}.md</code>`, `<a href="/learn/${slug}/">${title}</a>`);
+  }
+  html = html.replace("OFFLINE REPORT", "BROWSER LEARNING LAB");
+  html = html.replace("Generated locally · No telemetry · No remote assets", "Browser calculations · Temporary sandbox · No sign-in required");
+  return html;
+}
+
+function buildSite(output = path.join(ROOT, "dist")) {
+  const destination = path.resolve(output);
+  // Don't erase an arbitrary path. Fresh temp output is supported by tests.
+  if (fs.existsSync(destination)) {
+    if (destination !== path.join(ROOT, "dist")) throw new Error("Custom output must not already exist.");
+    fs.rmSync(destination, { recursive: true });
+  }
+  function write(relative, content) {
+    const file = path.join(destination, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, content);
+  }
+  const home = fs.readFileSync(path.join(ROOT, "site/index.html"), "utf8");
+  write("index.html", home.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${CSP}">`));
+  write("site.css", fs.readFileSync(path.join(ROOT, "site/site.css")));
+  for (const name of ["moons", "circles", "xor"]) {
+    write(`labs/${name}/index.html`, hostedReport(name, fs.readFileSync(path.join(ROOT, `examples/${name}/report.html`), "utf8")));
+  }
+  for (const slug of Object.keys(LESSONS)) write(`learn/${slug}/index.html`, renderLesson(slug, fs.readFileSync(path.join(ROOT, `docs/${slug}.md`), "utf8")));
+  const katexRoot = path.resolve(path.dirname(require.resolve("katex")), "..");
+  write("assets/katex/katex.min.css", fs.readFileSync(path.join(katexRoot, "dist/katex.min.css")));
+  write("assets/katex/LICENSE.txt", fs.readFileSync(path.join(katexRoot, "LICENSE")));
+  for (const font of fs.readdirSync(path.join(katexRoot, "dist/fonts"))) {
+    if (/\.(woff2?|ttf)$/.test(font)) write("assets/katex/fonts/" + font, fs.readFileSync(path.join(katexRoot, "dist/fonts", font)));
+  }
+  write("404.html", page("Page not found", '<main id="main" class="site-main"><p class="eyebrow">404 / FIND YOUR WAY BACK</p><h1>This page is not in the lab.</h1><p>Choose an experiment or a maths guide from the learning home.</p><a class="button" href="/">Back to Neural Math Lab →</a></main>'));
+  write("_headers", "/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'; form-action 'none'\n");
+  return destination;
+}
+
+module.exports = { buildSite, hostedReport, renderLesson, LESSONS };
+if (require.main === module) console.log("Built public assets in " + buildSite());
