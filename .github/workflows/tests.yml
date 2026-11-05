@@ -29,7 +29,7 @@ jobs:
       - run: python -m neural_math_lab gradient-check
       - run: python -m neural_math_lab train --output runs/ci
       - run: python -m neural_math_lab explain --model runs/ci/model.json --input 1 0
-      - run: node --test tests/test_report.js
+      - run: node --test tests/test_*.js
       - run: python -m neural_math_lab experiment --samples 120 --epochs 30 --fn-cost 3 --output runs/advanced-ci
       - run: python -m neural_math_lab explain --model runs/advanced-ci/pipeline.json --input 0.5 0.2 --delta 0.01 -0.02
       - name: Check packaged report assets outside the checkout

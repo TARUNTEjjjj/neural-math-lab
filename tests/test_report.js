@@ -77,7 +77,8 @@ test("extreme positive and negative logits remain finite", () => {
 for (const dataset of ["moons", "circles"]) {
   const file = path.join(__dirname, "..", "examples", dataset, "experiment.json");
   test(dataset + ": offline report embeds the current runtime with a matching CSP hash", () => {
-    const script = fs.readFileSync(path.join(__dirname, "..", "neural_math_lab", "assets", "experiment.js"), "utf8");
+    const script = ["experiment.js", "optimization.js", "optimization-ui.js"].map((name) =>
+      fs.readFileSync(path.join(__dirname, "..", "neural_math_lab", "assets", name), "utf8")).join("\n");
     const report = fs.readFileSync(path.join(__dirname, "..", "examples", dataset, "report.html"), "utf8");
     const embedded = report.match(/<script>([\s\S]*?)<\/script>/g);
     assert.deepEqual(embedded, ["<script>" + script + "</script>"]);

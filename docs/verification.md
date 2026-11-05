@@ -1,5 +1,40 @@
 # Release verification
 
+## Gradient lab release (0.4) — 5 November 2026
+
+The complete local suite passed **147 Python tests** and **34 Node.js tests**.
+New checks compare every browser gradient with NumPy, central finite differences,
+and a hand-computed single-neuron example. They also verify coordinate and full
+gradient-descent updates, loss slices and tangents, stable extreme logits,
+unpenalized biases, duplicated-batch invariance, and rejection of invalid or
+overflowing arithmetic. These finite checks do not prove correctness for every
+possible floating-point input.
+
+UI regression tests execute the actual event handlers with a small DOM adapter.
+They cover apply/undo/reset, the 50-step limit, invalid-input recovery, changes
+to the starting model/batch/L2 coefficient, and recalculation at click time.
+Adversarial validation/test rows do not enter updates. All operations preserve
+the embedded recorded experiment, and resetting restores the chosen model.
+
+Browser checks on both included reports covered numerical derivative agreement,
+coordinate and all-parameter steps, keyboard activation, undo/reset, invalid
+controls, and a deliberately large learning rate that increased the objective.
+The held-out results stayed fixed. Desktop and 390- and 320-pixel mobile layouts
+had no page-wide overflow, including with the 41-row slice table expanded.
+No console warnings or errors occurred during these interactions. Browser
+checks used a local HTTP preview: direct `file://` navigation was blocked by
+the browser tool. Automated checks confirm embedded assets and matching CSP
+hashes without remote scripts or styles.
+
+The 0.4.0 wheel was built with the project virtual environment's current pip,
+installed into a temporary directory, and used outside the source checkout to
+generate a working report. All four new optimization assets were present.
+The committed moons/circles HTML reports were refreshed from their recorded
+experiments; their experiment data, saved models, and metrics are unchanged.
+Worked exercises were checked against NumPy. Local checks used macOS Apple
+Silicon, Python 3.9.6, NumPy 2.0.2, and Matplotlib 3.9.4. Consult the exact
+commit's Actions run for Linux/macOS CI results.
+
 ## Numerical review fixes — 5 November 2026
 
 The full local suite passed **143 Python tests** and **19 Node.js tests** after

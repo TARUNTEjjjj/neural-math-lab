@@ -3,4 +3,4 @@
 from .core import Network, gradient_check, train, xor_data
 
 __all__ = ["Network", "gradient_check", "train", "xor_data"]
-__version__ = "0.3.0"
+__version__ = "0.4.0"

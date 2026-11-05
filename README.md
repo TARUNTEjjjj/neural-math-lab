@@ -14,7 +14,7 @@ Download or clone the repository and open one of these files locally in a browse
 
 GitHub displays the HTML source rather than running the reports. Once downloaded, each report opens directly from disk without a web server, account, or internet connection. All scripts, styles, figures, and experiment data are embedded. Replay needs JavaScript; recorded metrics and a static learning-curve figure remain readable without it.
 
-The controls inspect a **recorded experiment**. They do not retrain the model in your browser. Use the Python commands below to change the experiment and produce a new report.
+Replay and diagnostics inspect a **recorded experiment**. The new **Gradient lab** also performs temporary gradient-descent steps on a separate copy using training rows only. Saved models and evaluation results stay fixed. Use the Python commands below to produce a new recorded experiment.
 
 ![Training and validation loss in the included moons experiment](examples/moons/learning.svg)
 
@@ -55,6 +55,18 @@ The default output directory is `runs/<dataset>`, so `experiment --dataset circl
 The browser's prediction calculations are checked against the saved Python predictions. The exportable SVG figures and full machine-readable history remain available alongside the report.
 
 Point inspection and split visibility reuse the current boundary grid instead of running thousands of identical predictions again. Changing a checkpoint or model rebuilds that grid; the cache keeps only one grid and does not change the recorded mathematics.
+
+### Explore the gradient lab
+
+Open a moons or circles report and choose **Gradient lab** in the navigation:
+
+1. Start from the initial checkpoint or the validation-selected model, and choose the first 1, 16, or 64 training rows (capped by the available training rows).
+2. Select any weight or bias. Compare its backpropagation derivative with a central finite difference; change ε to explore approximation and rounding error.
+3. Read a loss slice and its tangent while all other parameters stay fixed. A numeric table accompanies the chart.
+4. Preview a step on that coordinate or all parameters. Compare the first-order predicted change with the actual objective before applying it; a large learning rate can increase loss.
+5. Apply up to 50 temporary steps, undo individual steps, or reset. Changing the source checkpoint, training batch or L2 coefficient resets the sandbox.
+
+The sandbox uses plain gradient descent even when the recorded run used Adam. It keeps no persistent state, uses no validation/test rows for updates, and never rewrites the report’s recorded results. Its bounded batch keeps the experiment responsive offline. Read [the optimization derivation](docs/optimization-mathematics.md) and [eight worked exercises](docs/optimization-exercises.md) alongside the controls.
 
 ### Change one setting at a time
 
@@ -141,7 +153,7 @@ Reports include their experiment's coordinates, labels, weights, and results. Sh
 
 ```sh
 python -m unittest discover -s tests -v
-node --test tests/test_report.js
+node --test tests/test_*.js
 ```
 
 Node.js 22 or newer is recommended for the browser-logic tests; it is not needed for Python training or for opening a report. No npm dependencies are required.
@@ -161,7 +173,7 @@ GitHub Actions is configured to run on Linux and macOS, including a Python 3.9 c
 | `neural_math_lab/storage.py` | Validated network and preprocessing pipeline JSON |
 | `neural_math_lab/cli.py` | Runnable training, experiment, explanation, and gradient-check commands |
 | `neural_math_lab/experiment_report.py` | Advanced artifacts and scientific figures from actual run data |
-| `neural_math_lab/assets/` | Embedded report layout, style, checkpoint replay, and point calculations |
+| `neural_math_lab/assets/` | Embedded report layout, replay, point calculations, and temporary optimization sandbox |
 | `neural_math_lab/report.py` | Introductory XOR report |
 | `tests/` | Independent mathematical, data-boundary, CLI, persistence, and browser-logic checks |
 

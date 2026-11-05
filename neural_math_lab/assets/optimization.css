@@ -1,0 +1,20 @@
+/* Temporary training sandbox; every grid child can shrink on narrow screens. */
+.optimization-settings{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:16px;padding:18px;background:#f2f6ed;border:1px solid var(--line);border-radius:12px}
+.optimization-settings>*,.optimization-grid>*,.optimization-plot .controls>*,.optimization-derivatives>div{min-width:0}
+.optimization-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:26px;margin-top:24px}
+.optimization-plot .controls{display:grid;grid-template-columns:minmax(0,1fr) 130px}
+.optimization-panel select{min-width:0;max-width:100%}.optimization-panel code{overflow-wrap:anywhere}
+#optimization-slice{background:#fafcf7;border:1px solid var(--line);border-radius:10px}
+.optimization-derivatives{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:20px 0}
+.optimization-derivatives>div{padding:12px;border:1px solid var(--line);border-radius:8px;background:#f7faf4}
+.optimization-derivatives span{display:block;font-size:10px;line-height:1.5;color:var(--muted)}
+.optimization-derivatives strong{display:block;margin-top:8px;font-size:17px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;color:var(--green)}
+.epsilon-control{max-width:220px}.optimization-step{background:#f3f7ee;border:1px solid #d9e4d2;border-radius:12px;padding:20px}
+.optimization-step>label{margin:14px 0}.optimization-values{font-size:12px;font-variant-numeric:tabular-nums}
+.optimization-values>div{display:flex;justify-content:space-between;gap:15px;padding:10px 0;border-bottom:1px solid #dce5d6}
+.optimization-values dt{color:#506658}.optimization-values dd{margin:0;font-weight:700;text-align:right;overflow-wrap:anywhere;min-width:0}
+.optimization-verdict{font-size:12px;padding:12px;border-radius:8px;background:#dcebd8}.optimization-verdict.uphill{background:#fae8d9;color:#803917}
+.optimization-buttons{display:flex;flex-wrap:wrap;gap:9px}.optimization-buttons button{white-space:normal}
+.optimization-scroll{max-height:290px}.optimization-lessons{margin-top:18px}
+@media(max-width:900px){.optimization-grid{grid-template-columns:1fr}.optimization-settings{grid-template-columns:1fr 1fr}.optimization-settings>label:first-child{grid-column:1/-1}}
+@media(max-width:480px){.optimization-settings{padding:12px;gap:10px}.optimization-grid{gap:18px}.optimization-step{padding:15px}.optimization-plot .controls{grid-template-columns:minmax(0,1fr) 100px}.optimization-derivatives{grid-template-columns:1fr}.optimization-derivatives>div{display:flex;align-items:center;justify-content:space-between;gap:8px}.optimization-derivatives strong{margin-top:0;font-size:16px}.optimization-values>div{gap:10px}}

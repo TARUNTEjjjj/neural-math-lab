@@ -180,12 +180,15 @@ def write_experiment_report(result, output):
         error_table += '<p class="caption">Showing 50 of {} misclassified examples. Full test predictions are in experiment.json.</p>'.format(len(errors))
     diagnostic_summary, diagnostic_tables = _diagnostic_tables(result["diagnostics"])
     assets = Path(__file__).parent / "assets"
-    script = (assets / "experiment.js").read_text(encoding="utf-8")
+    script = "\n".join((assets / name).read_text(encoding="utf-8")
+                       for name in ("experiment.js", "optimization.js", "optimization-ui.js"))
     script_hash = base64.b64encode(hashlib.sha256(script.encode("utf-8")).digest()).decode("ascii")
     svg = (output / "learning.svg").read_text(encoding="utf-8")
     command = "python -m neural_math_lab experiment " + " ".join("--{} {}".format(key.replace("_", "-"), config[key]) for key in ("dataset", "samples", "noise", "hidden", "seed", "epochs", "learning_rate", "optimizer", "batch_size", "l2", "patience", "min_delta", "fp_cost", "fn_cost")) + " --output runs/new-experiment"
     replacements = {
-        "CSS": (assets / "experiment.css").read_text(encoding="utf-8"),
+        "CSS": "\n".join((assets / name).read_text(encoding="utf-8")
+                         for name in ("experiment.css", "optimization.css")),
+        "OPTIMIZATION_LAB": (assets / "optimization.html").read_text(encoding="utf-8"),
         "SCRIPT": script, "SCRIPT_HASH": script_hash, "DATA": json_text(document).replace("<", "\\u003c"),
         "DATASET": html.escape(config["dataset"].title()), "HIDDEN": str(config["hidden"]),
         "TAGS": "".join("<span>{}</span>".format(html.escape(str(tag))) for tag in (config["optimizer"].upper(), "Batch " + str(config["batch_size"]), "λ " + str(config["l2"]), "Seed " + str(config["seed"]))),
