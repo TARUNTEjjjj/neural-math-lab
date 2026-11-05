@@ -19,11 +19,11 @@ Node.js 26.13.0, and the Python tests passed in each environment below:
 
 | Python | NumPy | Matplotlib | Python tests |
 | --- | --- | --- | --- |
-| 3.9.6 (Command Line Tools `/usr/bin/python3`) | 2.0.2 | 3.9.4 | 135 passed |
-| 3.11.18 | 1.26.0 (oldest accepted) | 3.7.0 (oldest accepted) | 135 passed |
-| 3.11.18 | 2.4.6 | 3.11.2 | 135 passed |
-| 3.12.16, 3.13.18, 3.14.10 | 2.5.4 | 3.11.2 | 135 passed each |
-| 3.15.2 | 2.5.4 | 3.11.2 | 135 passed, also with warnings as errors |
+| 3.9.6 (Command Line Tools `/usr/bin/python3`) | 2.0.2 | 3.9.4 | 143 passed |
+| 3.11.18 | 1.26.0 (oldest accepted) | 3.7.0 (oldest accepted) | 143 passed |
+| 3.11.18 | 2.4.6 | 3.11.2 | 143 passed |
+| 3.12.16, 3.13.18, 3.14.10 | 2.5.4 | 3.11.2 | 143 passed each |
+| 3.15.2 | 2.5.4 | 3.11.2 | 143 passed, also with warnings as errors |
 
 Each `run:` step of the new workflow was also replayed on this Mac for the
 Python 3.9, 3.12, and 3.15 jobs and the minimum-dependency job, in a fresh copy
@@ -53,7 +53,7 @@ across Python versions and virtual environments until its font-cache version
 changes or `MPLCONFIGDIR` points to a new directory. The slow step does not run
 on Linux or Windows. The two CLI test classes each set a private
 `MPLCONFIGDIR`, so with Matplotlib 3.11.2 their two cache builds took about 19
-of the suite's 23 seconds.
+of the suite's 22 seconds.
 
 A wheel built with Python 3.15 contained every module and report asset, and
 its installed `neural-math-lab` command produced a complete experiment outside
@@ -70,6 +70,25 @@ over HTTP and from disk, and logged no console messages. Running the moons and
 circles reports' own inference code there reproduced all 240 saved Python test
 predictions within 1e-12 (largest difference 3.3e-16), for both the committed
 reports and reports regenerated on Python 3.15.
+
+## Numerical review fixes — 5 November 2026
+
+The full local suite passed **143 Python tests** and **19 Node.js tests** after
+fixing two reproduced review findings. Eight added regressions cover:
+
+- L2 arithmetic with learner-supplied nested lists and integer matrices. The
+  regularizer now uses validated float64 values without replacing or mutating
+  the exposed parameter containers. The integer fixture previously returned a
+  negative objective; it now matches `log(2) + 80`.
+- Decimal cost scaling, symmetric threshold distances, genuine cost differences,
+  zero versus tiny positive cost, the exact 0.5 candidate, and comparisons
+  anchored to the minimum so approximate ties cannot chain together.
+
+The reproduced failures were observed before their fixes. The separate numerical
+gradient check passed with maximum absolute error about `1.10e-11`. Reselecting
+thresholds from the committed moons and circles validation scores reproduced
+all four saved selections exactly, including the linear baselines; the example
+artifacts did not need regeneration. No browser runtime or layout changed.
 
 ## Decision lab release (0.3) — 5 November 2026
 

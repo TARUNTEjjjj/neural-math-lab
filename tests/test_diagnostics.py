@@ -1,6 +1,7 @@
 """Independent counts, pairwise ranking, bin arithmetic, and chain-rule checks."""
 
 import json
+from decimal import Decimal
 import unittest
 from unittest.mock import patch
 
@@ -170,7 +171,10 @@ class ThresholdTests(unittest.TestCase):
             def key(threshold):
                 fp = sum(y == 0 and score >= threshold for y, score in zip(labels, scores))
                 fn = sum(y == 1 and score < threshold for y, score in zip(labels, scores))
-                return (fp_cost * fp + fn_cost * fn, abs(threshold - .5), -threshold)
+                # Decimal arithmetic is an independent oracle for these decimal
+                # fixtures; binary subtraction must not decide symmetric ties.
+                return (fp_cost * fp + fn_cost * fn,
+                        abs(Decimal(str(threshold)) - Decimal('.5')), -threshold)
             expected = min(candidates, key=key)
             result = select_threshold(column(labels), column(scores), fp_cost, fn_cost)
             self.assertEqual(result["threshold"], expected)
@@ -192,6 +196,49 @@ class ThresholdTests(unittest.TestCase):
         second = select_threshold(y, p, 100, 300)
         self.assertEqual(first["threshold"], second["threshold"])
         self.assertEqual(second["mean_cost"], 100 * first["mean_cost"])
+
+    def test_decimal_cost_ties_survive_rescaling_and_row_permutation(self):
+        labels, scores = column([1, 0, 0, 0, 1]), column([.5, .5, .5, .5, .9])
+        # Three false positives and one false negative have the same cost.
+        # Multiplying 0.1 by 3 must not defeat the closest-to-0.5 tie rule.
+        for fp_cost, fn_cost in ((1, 3), (.1, .3), (1e-200, 3e-200), (1e5, 3e5)):
+            for ids in ([0, 1, 2, 3, 4], [4, 3, 2, 1, 0], [2, 4, 0, 3, 1]):
+                with self.subTest(costs=(fp_cost, fn_cost), ids=ids):
+                    result = select_threshold(labels[ids], scores[ids], fp_cost, fn_cost)
+                    self.assertEqual(result["threshold"], .5)
+                    self.assertEqual((result["fp"], result["fn"]), (3, 0))
+
+    def test_equidistant_decimal_thresholds_prefer_higher_candidate(self):
+        # Both rules make one mistake and are 0.3 away from 0.5.
+        result = select_threshold(column([1, 0, 1]), column([.2, .6, .8]))
+        self.assertEqual(result["threshold"], .8)
+
+    def test_genuinely_different_costs_are_not_rounded_into_ties(self):
+        # A small but resolvable advantage still beats proximity to 0.5.
+        result = select_threshold(column([1, 0, 0, 0, 1]),
+                                  column([.5, .5, .5, .5, .9]), .1, .3 - 1e-12)
+        self.assertEqual(result["threshold"], .9)
+
+    def test_zero_cost_beats_tiny_positive_cost_without_absolute_tolerance(self):
+        for cost in (1e-200, float(np.nextafter(0., 1.))):
+            with self.subTest(cost=cost):
+                result = select_threshold(column([0, 1]), column([.6, .8]), cost, cost)
+                self.assertEqual(result["threshold"], .8)
+                self.assertEqual(result["total_cost"], 0)
+
+    def test_exact_half_remains_closest_despite_adjacent_float_threshold(self):
+        adjacent = float(np.nextafter(.5, 1.))
+        result = select_threshold(column([0, 1]), column([.1, adjacent]))
+        self.assertEqual(result["threshold"], .5)
+
+    def test_roundoff_ties_are_anchored_to_minimum_without_chaining(self):
+        # Costs at thresholds .1, .3 and .5 are 2, 2+12eps, 2+24eps.
+        # Adjacent pairs are close, but .5 is outside the minimum's tolerance.
+        labels, scores = column([0, 1, 0, 1]), column([.4, .3, .2, .1])
+        for ids in ([0, 1, 2, 3], [3, 2, 1, 0]):
+            result = select_threshold(labels[ids], scores[ids], 1,
+                                      1 + 12 * np.finfo(np.float64).eps)
+            self.assertEqual(result["threshold"], .3)
 
 
 class InputSensitivityTests(unittest.TestCase):
