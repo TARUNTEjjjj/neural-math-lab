@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 2,
+  "startedAt": "2026-11-05T08:41:06.874Z",
+  "finishedAt": "2026-11-05T08:44:33.644Z",
+  "config": {
+    "url": "https://neural-math-lab.pages.dev",
+    "vus": 10000,
+    "rampSeconds": 120,
+    "holdSeconds": 65,
+    "thinkSeconds": 60,
+    "maxInflight": 128,
+    "maxRps": 400,
+    "connections": 8,
+    "timeoutSeconds": 15,
+    "readyGraceSeconds": 30,
+    "maxRequests": 200000,
+    "maxWireBytes": 3221225472,
+    "maxFailureRate": 0.01,
+    "maxP95Ms": 2000,
+    "maxDispatchP95Ms": 1000,
+    "maxEventLoopP95Ms": 100,
+    "expectedHashes": {
+      "/": "9bfc624716e0350be58457f94537c06e62f2470f5481834b9dbc822f9736b70c",
+      "/labs/moons/": "6486196585c0088e4efbd186c5eae8fe965fea1e995feeb3def72b255596cf4d",
+      "/labs/circles/": "24cb2efabc6eed68bda6cfbe4e7a5c2bb0b454c8f296ba45537928eecbfa0180",
+      "/learn/optimization-mathematics/": "97544cb9484b0cdc5d13a8b3c18af6c4b3eb9545f30495032a4e1c1f611e177f"
+    }
+  },
+  "scenario": {
+    "routes": [
+      "/",
+      "/labs/moons/",
+      "/labs/circles/",
+      "/learn/optimization-mathematics/"
+    ],
+    "workload": "One HTML navigation per virtual user, followed by think time; routes rotate.",
+    "excluded": [
+      "CSS/JavaScript/font subrequests",
+      "real browser execution and interaction CPU",
+      "independent devices/IP addresses",
+      "multi-region delivery",
+      "10,000 simultaneous in-flight HTTP requests"
+    ],
+    "readiness": "Full-target hold starts only after every VU completes a verified successful first page response.",
+    "responseVerification": "HTTP 200, HTML content type, streamed decompression, route-specific title, SHA-256 of the entire decoded response matching the known build, minimum bytes and matching Content-Length when supplied."
+  },
+  "passed": false,
+  "checks": {
+    "noAbort": true,
+    "allVirtualUsersVerified": true,
+    "fullTargetHoldCompleted": true,
+    "failureRateWithinLimit": true,
+    "responseP95WithinLimit": false,
+    "dispatchP95WithinLimit": false,
+    "generatorEventLoopHealthy": true,
+    "holdHadNavigationRequests": true,
+    "holdFailureRateWithinLimit": true,
+    "holdResponseP95WithinLimit": false,
+    "holdDispatchP95WithinLimit": false
+  },
+  "abortReason": null,
+  "summary": {
+    "scheduledUsers": 10000,
+    "activatedUsers": 10000,
+    "readyUsers": 10000,
+    "peakActiveUsers": 10000,
+    "requests": 23410,
+    "completed": 23410,
+    "successes": 23410,
+    "failures": 0,
+    "inflight": 0,
+    "peakInflight": 128,
+    "peakQueuedUsers": 2375,
+    "wireBytes": 1341325523,
+    "decodedBytes": 6077159227,
+    "peakRssBytes": 196240336,
+    "readyAtMs": 140762.179833,
+    "targetStartedAtMs": 119996.478917,
+    "holdStartedAtMs": 140762.179833,
+    "holdFinishedAtMs": 205765.164792,
+    "durationSeconds": 206.741,
+    "measuredTrafficSeconds": 205.765,
+    "fullTargetHoldSeconds": 65.003,
+    "failureRate": 0,
+    "requestsPerSecond": 113.233,
+    "responseMs": {
+      "count": 23410,
+      "p50": 484.876,
+      "p95": 2075.924,
+      "p99": 2434.547,
+      "max": 3598.645
+    },
+    "dispatchMs": {
+      "count": 23410,
+      "p50": 12205.096,
+      "p95": 18745.602,
+      "p99": 18824.618,
+      "max": 18899.649
+    },
+    "eventLoopP95Ms": 21.135,
+    "eventLoopMaxMs": 25.657
+  },
+  "failures": {},
+  "cache": {
+    "unknown": 23410
+  },
+  "cloudflarePops": {
+    "MAA": 23410
+  },
+  "routes": {
+    "/": {
+      "requests": 5869,
+      "successes": 5869,
+      "failures": 0,
+      "wireBytes": 20547873,
+      "cache": {
+        "unknown": 5869
+      },
+      "etags": [],
+      "responseMs": {
+        "count": 5869,
+        "p50": 390.711,
+        "p95": 572.6,
+        "p99": 805.383,
+        "max": 1309.706
+      }
+    },
+    "/learn/optimization-mathematics/": {
+      "requests": 5836,
+      "successes": 5836,
+      "failures": 0,
+      "wireBytes": 80362917,
+      "cache": {
+        "unknown": 5836
+      },
+      "etags": [],
+      "responseMs": {
+        "count": 5836,
+        "p50": 398.872,
+        "p95": 764.923,
+        "p99": 968.241,
+        "max": 1415.495
+      }
+    },
+    "/labs/circles/": {
+      "requests": 5830,
+      "successes": 5830,
+      "failures": 0,
+      "wireBytes": 525101181,
+      "cache": {
+        "unknown": 5830
+      },
+      "etags": [],
+      "responseMs": {
+        "count": 5830,
+        "p50": 1261.498,
+        "p95": 1898.317,
+        "p99": 2212.27,
+        "max": 2731.635
+      }
+    },
+    "/labs/moons/": {
+      "requests": 5875,
+      "successes": 5875,
+      "failures": 0,
+      "wireBytes": 715313552,
+      "cache": {
+        "unknown": 5875
+      },
+      "etags": [],
+      "responseMs": {
+        "count": 5875,
+        "p50": 1674.28,
+        "p95": 2375.086,
+        "p99": 2698.96,
+        "max": 3598.645
+      }
+    }
+  },
+  "stages": {
+    "ramp": {
+      "requests": 12654,
+      "successes": 12654,
+      "failures": 0,
+      "responseMs": {
+        "count": 12654,
+        "p50": 387.238,
+        "p95": 1954.77,
+        "p99": 2350.442,
+        "max": 3333.333
+      },
+      "dispatchMs": {
+        "count": 12654,
+        "p50": 1763.184,
+        "p95": 12772.533,
+        "p99": 13700.769,
+        "max": 14030.89
+      }
+    },
+    "waiting_for_verified_users": {
+      "requests": 2621,
+      "successes": 2621,
+      "failures": 0,
+      "responseMs": {
+        "count": 2621,
+        "p50": 818.334,
+        "p95": 2158.647,
+        "p99": 2501.763,
+        "max": 3586.86
+      },
+      "dispatchMs": {
+        "count": 2621,
+        "p50": 16577.28,
+        "p95": 18501.676,
+        "p99": 18550.106,
+        "max": 18580.477
+      }
+    },
+    "hold": {
+      "requests": 8135,
+      "successes": 8135,
+      "failures": 0,
+      "responseMs": {
+        "count": 8135,
+        "p50": 792.973,
+        "p95": 2163.403,
+        "p99": 2510.153,
+        "max": 3598.645
+      },
+      "dispatchMs": {
+        "count": 8135,
+        "p50": 18603.692,
+        "p95": 18807.253,
+        "p99": 18846.644,
+        "max": 18899.649
+      }
+    }
+  }
+}

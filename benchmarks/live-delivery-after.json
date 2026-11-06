@@ -1,0 +1,59 @@
+{
+  "checkedAt": "2026-11-05T08:35:35.205Z",
+  "results": [
+    {
+      "path": "/",
+      "status": 200,
+      "cache": "public, max-age=0, must-revalidate",
+      "encoding": "br",
+      "etag": null,
+      "decodedBytes": 10477,
+      "pop": "MAA"
+    },
+    {
+      "path": "/labs/moons/",
+      "status": 200,
+      "cache": "public, max-age=0, must-revalidate",
+      "encoding": "br",
+      "etag": null,
+      "decodedBytes": 482820,
+      "pop": "MAA"
+    },
+    {
+      "path": "/labs/circles/",
+      "status": 200,
+      "cache": "public, max-age=0, must-revalidate",
+      "encoding": "br",
+      "etag": null,
+      "decodedBytes": 379411,
+      "pop": "MAA"
+    },
+    {
+      "path": "/learn/optimization-mathematics/",
+      "status": 200,
+      "cache": "public, max-age=0, must-revalidate",
+      "encoding": "br",
+      "etag": null,
+      "decodedBytes": 165719,
+      "pop": "MAA"
+    },
+    {
+      "path": "/assets/lab.938192151f1c6e05.css",
+      "status": 200,
+      "cache": "public, max-age=31536000, immutable",
+      "encoding": "br",
+      "etag": "W/\"68468f2d5e1b8ad3196cf949ccb93df5\"",
+      "decodedBytes": 17691,
+      "pop": "MAA"
+    },
+    {
+      "path": "/assets/lab.70211d2a92b6fcc2.js",
+      "status": 200,
+      "cache": "public, max-age=31536000, immutable",
+      "encoding": "br",
+      "etag": "W/\"4f3af6b9e32de965415ef2aee520adf8\"",
+      "decodedBytes": 41996,
+      "pop": "MAA"
+    }
+  ]
+}

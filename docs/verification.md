@@ -1,6 +1,6 @@
 # Release verification
 
-## Toolchain refresh — 6 November 2026
+## Toolchain refresh — 7 November 2026
 
 This refresh changes no package code. It updates continuous integration and
 records checks against the newest Python, NumPy, and Matplotlib releases.
@@ -13,7 +13,7 @@ The workflow now uses `actions/checkout@v7`, `actions/setup-python@v7`, and
 every job reported a deprecation warning. The new matrix is described under
 Continuous checks. Each job records its resolved dependency versions.
 
-Checked locally on macOS Apple Silicon. After `npm ci --ignore-scripts`, the 40
+Checked locally on macOS Apple Silicon. After `npm ci --ignore-scripts`, the 64
 Node.js tests and the website build passed with Node.js 26.13.0, and the Python
 tests passed in each environment below:
 
@@ -71,6 +71,32 @@ over HTTP and from disk, and logged no console messages. Running the moons and
 circles reports' own inference code there reproduced all 240 saved Python test
 predictions within 1e-12 (largest difference 3.3e-16), for both the committed
 reports and reports regenerated on Python 3.15.
+
+## Performance and distributed capacity — 7 November 2026
+
+The optimized site is live at <https://neural-math-lab.pages.dev/>. GitHub
+privacy was rechecked and restored to private before this release was pushed.
+The performance commit is attributed to `TARUNTEjjjj`.
+
+The complete local JavaScript suite passed **64 tests**. GitHub Actions also
+passed all **147 Python tests** and 64 JavaScript tests on both Linux Python
+3.9 and 3.12 configurations, including training and installed-package checks.
+See the exact workflow run for macOS status. The recorded experiment data
+remain unchanged; the browser handler and hosted asset delivery were optimized.
+
+The two-runner capacity workflow passed with 10,000 verified virtual learners
+overlapping for **118.840 seconds**. During that overlap, **19,797** complete
+build-matching responses had **zero failures**, **93.027 ms response p95** and
+**9.883 ms dispatch-delay p95**. This is an HTTP document-navigation workload
+with 60 seconds of reading time, not 10,000 full browser instances. The earlier
+single-laptop 10,000-user run failed latency/queue limits and is retained.
+See [the performance report](performance.md) for raw evidence and limitations.
+
+All **43 live HTTP checks** passed, including exact deployed assets, cache
+headers and five unavailable source paths. Browser checks covered full-gradient
+apply/undo during the measured overlap, invalid-input recovery, 390-pixel
+mobile layout and 75 rendered mathematics equations. No application console
+errors or warnings occurred in the tested interactions.
 
 ## Cloudflare Pages website — 5 November 2026
 

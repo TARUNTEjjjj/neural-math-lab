@@ -70,6 +70,8 @@ Open a moons or circles report and choose **Gradient lab** in the navigation:
 
 The sandbox uses plain gradient descent even when the recorded run used Adam. It keeps no persistent state, uses no validation/test rows for updates, and never rewrites the report’s recorded results. Its bounded batch keeps the experiment responsive offline. Read [the optimization derivation](docs/optimization-mathematics.md) and [eight worked exercises](docs/optimization-exercises.md) alongside the controls.
 
+Changing the learning rate reuses the unchanged derivative check and loss slice. Caches keep only the current calculation for each dependency set; changes to the model, batch, parameter or regularization invalidate the affected results. Invalid-input recovery and Apply still validate the current controls.
+
 ### Change one setting at a time
 
 ```sh
@@ -200,3 +202,7 @@ npx wrangler pages deploy dist --project-name neural-math-lab --branch main
 ```
 
 `scripts/build-site.cjs` uses an explicit allowlist and creates `dist/`: a learning home, three reports, eight linked maths/exercise guides, pre-rendered equations with local fonts, and a real 404 page. Report runtime bytes and embedded experiment data are preserved. Never deploy the repository root or entire `examples/` directory. The build requires no Cloudflare credentials; publishing uses Wrangler's authenticated session. This is a Direct Upload Pages project: GitHub pushes run verification but do not automatically publish. Repeat the build and deploy command to update the live site.
+
+The hosted build shares content-hashed JavaScript, CSS and WOFF2 fonts across pages. These assets have immutable browser caching; HTML still revalidates so deployments stay fresh. Scripts retain their exact tested bytes, use integrity checks, and load after parsing. The downloadable example reports remain self-contained.
+
+See [performance measurements and capacity-test scope](docs/performance.md) before running `npm run test:capacity`. The live workload is a bounded HTTP navigation simulation with reading time, not a fleet of full browsers. Regular `npm test` uses local fixtures and never load-tests the live website.

@@ -75,9 +75,11 @@ function start() {
   elements.set("experiment-data", experiment);
   let parsedExperiment;
   const batchCalls = [];
+  const mathCalls = { gradientCheck: 0, proposeStep: 0, lossSlice: 0 };
   const observedMath = { ...math };
   for (const name of ["gradientCheck", "proposeStep", "lossSlice"]) {
     observedMath[name] = (...args) => {
+      mathCalls[name]++;
       batchCalls.push(JSON.parse(JSON.stringify(args[1])));
       return math[name](...args);
     };
@@ -95,7 +97,7 @@ function start() {
   const get = (id) => elements.get("optimization-" + id);
   const set = (id, value, event = "input") => { get(id).value = String(value); get(id).dispatch(event); };
   const rows = () => get("history").children.map((row) => row.children.map((cell) => cell.textContent));
-  return { get, set, rows, batchCalls, initial, selected, data,
+  return { get, set, rows, batchCalls, mathCalls, initial, selected, data,
     checkRecorded: () => assert.equal(JSON.stringify(parsedExperiment), recorded) };
 }
 
@@ -193,5 +195,61 @@ test("sandbox enforces its 50-step limit and undo restores one available step", 
   ui.get("reset").dispatch("click");
   assert.equal(ui.rows().length, 1);
   assert.equal(ui.get("apply").disabled, false);
+  ui.checkRecorded();
+});
+
+test("rate and update-direction edits preserve the unchanged curve, derivative and table nodes", () => {
+  const ui = start();
+  const sliceRow = ui.get("slice-rows").children[0], historyRow = ui.get("history").children[0];
+  const check = ui.get("analytic").textContent;
+  for (const rate of [.2, .3, .4]) ui.set("rate", rate);
+  ui.set("direction", "full", "change");
+  assert.deepEqual(ui.mathCalls, { gradientCheck: 1, proposeStep: 5, lossSlice: 1 });
+  assert.equal(ui.get("slice-rows").children[0], sliceRow);
+  assert.equal(ui.get("history").children[0], historyRow);
+  assert.equal(ui.get("analytic").textContent, check);
+  const expected = math.proposeStep(ui.initial, {
+    X: ui.data.data.X.slice(0, 3), y: [1, 0, 1], mean: [[0, 0]], scale: [[1, 1]], l2: .1,
+  }, .4);
+  assert.ok(Math.abs(Number(ui.get("after").textContent) - expected.after.loss) < 1e-6);
+  ui.checkRecorded();
+});
+
+test("epsilon and radius invalidate only their dependent calculations, and invalid inputs restore the curve", () => {
+  const ui = start();
+  const firstRow = ui.get("slice-rows").children[0];
+  ui.set("epsilon", .0001);
+  assert.deepEqual(ui.mathCalls, { gradientCheck: 2, proposeStep: 1, lossSlice: 1 });
+  assert.equal(ui.get("slice-rows").children[0], firstRow);
+  ui.set("radius", .5);
+  assert.deepEqual(ui.mathCalls, { gradientCheck: 2, proposeStep: 1, lossSlice: 2 });
+  assert.notEqual(ui.get("slice-rows").children[0], firstRow);
+  assert.equal(ui.get("slice-rows").children[0].children[0].textContent, "-0.5");
+  ui.set("radius", "");
+  assert.equal(ui.get("slice-rows").children.length, 0);
+  assert.equal(ui.get("apply").disabled, true);
+  ui.set("radius", .5);
+  assert.equal(ui.get("slice-rows").children.length, 41);
+  assert.equal(ui.get("apply").disabled, false);
+  assert.deepEqual(ui.mathCalls, { gradientCheck: 2, proposeStep: 1, lossSlice: 2 });
+});
+
+test("parameter changes and new sandbox models invalidate cached results without redoing the old proposal", () => {
+  const ui = start();
+  ui.set("parameter", 0, "change");
+  assert.deepEqual(ui.mathCalls, { gradientCheck: 2, proposeStep: 2, lossSlice: 2 });
+  const before = ui.get("before").textContent, after = ui.get("after").textContent;
+  ui.get("apply").dispatch("click");
+  assert.equal(ui.get("before").textContent, after);
+  assert.deepEqual(ui.mathCalls, { gradientCheck: 3, proposeStep: 3, lossSlice: 3 });
+  ui.get("undo").dispatch("click");
+  assert.equal(ui.get("before").textContent, before);
+  assert.deepEqual(ui.mathCalls, { gradientCheck: 4, proposeStep: 4, lossSlice: 4 });
+  // Only the current model is cached, so undo recomputes its original values.
+  for (const [id, value, event] of [["batch", 1, "change"], ["l2", .2, "input"], ["origin", "selected", "change"]]) {
+    const oldCalls = { ...ui.mathCalls };
+    ui.set(id, value, event);
+    for (const key of Object.keys(oldCalls)) assert.equal(ui.mathCalls[key], oldCalls[key] + 1);
+  }
   ui.checkRecorded();
 });

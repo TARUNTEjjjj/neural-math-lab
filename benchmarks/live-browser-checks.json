@@ -1,0 +1,57 @@
+{
+  "target": "https://neural-math-lab.pages.dev/",
+  "sourceCommit": "244091de7fa57c1ec77dbdf1e0ab20159bd39800",
+  "method": "Manual browser automation through the in-app Chromium browser; functional checks, not browser timing benchmarks.",
+  "checks": [
+    {
+      "name": "390px responsive gradient lab",
+      "passed": true,
+      "clientWidth": 390,
+      "scrollWidth": 390
+    },
+    {
+      "name": "Full-gradient step and undo on 64 training rows at learning rate 0.2",
+      "passed": true,
+      "objectiveBefore": 0.9182262,
+      "objectiveAfter": 0.6848585,
+      "objectiveAfterUndo": 0.9182262
+    },
+    {
+      "name": "Empty learning rate disables apply; correction restores preview",
+      "passed": true
+    },
+    {
+      "name": "Guide renders 75 MathML equations without math errors",
+      "passed": true,
+      "equations": 75,
+      "mathErrors": 0
+    },
+    {
+      "name": "Application warnings/errors in tested interactions",
+      "passed": true,
+      "warnings": 0,
+      "errors": 0
+    },
+    {
+      "name": "Desktop homepage visual check",
+      "passed": true
+    }
+  ],
+  "loadWindowInteraction": {
+    "observedBetweenUTC": [
+      "2026-11-06T18:39:49Z",
+      "2026-11-06T18:40:16Z"
+    ],
+    "actions": [
+      "Reload",
+      "Choose 64 training rows",
+      "Choose full gradient",
+      "Set learning rate to 0.2",
+      "Apply",
+      "Undo"
+    ],
+    "verifiedInsideDistributedOverlap": true,
+    "capacityRun": "https://github.com/TARUNTEjjjj/neural-math-lab/actions/runs/42272532458"
+  },
+  "viewportOverrideReset": true
+}

@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 2,
+  "startedAt": "2026-11-05T08:37:49.269Z",
+  "finishedAt": "2026-11-05T08:38:04.389Z",
+  "config": {
+    "url": "https://neural-math-lab.pages.dev",
+    "vus": 100,
+    "rampSeconds": 5,
+    "holdSeconds": 10,
+    "thinkSeconds": 2,
+    "maxInflight": 128,
+    "maxRps": 400,
+    "connections": 8,
+    "timeoutSeconds": 15,
+    "readyGraceSeconds": 30,
+    "maxRequests": 200000,
+    "maxWireBytes": 3221225472,
+    "maxFailureRate": 0.01,
+    "maxP95Ms": 2000,
+    "maxDispatchP95Ms": 1000,
+    "maxEventLoopP95Ms": 100,
+    "expectedHashes": {
+      "/": "9bfc624716e0350be58457f94537c06e62f2470f5481834b9dbc822f9736b70c",
+      "/labs/moons/": "6486196585c0088e4efbd186c5eae8fe965fea1e995feeb3def72b255596cf4d",
+      "/labs/circles/": "24cb2efabc6eed68bda6cfbe4e7a5c2bb0b454c8f296ba45537928eecbfa0180",
+      "/learn/optimization-mathematics/": "97544cb9484b0cdc5d13a8b3c18af6c4b3eb9545f30495032a4e1c1f611e177f"
+    }
+  },
+  "scenario": {
+    "routes": [
+      "/",
+      "/labs/moons/",
+      "/labs/circles/",
+      "/learn/optimization-mathematics/"
+    ],
+    "workload": "One HTML navigation per virtual user, followed by think time; routes rotate.",
+    "excluded": [
+      "CSS/JavaScript/font subrequests",
+      "real browser execution and interaction CPU",
+      "independent devices/IP addresses",
+      "multi-region delivery",
+      "10,000 simultaneous in-flight HTTP requests"
+    ],
+    "readiness": "Full-target hold starts only after every VU completes a verified successful first page response.",
+    "responseVerification": "HTTP 200, HTML content type, streamed decompression, route-specific title, SHA-256 of the entire decoded response matching the known build, minimum bytes and matching Content-Length when supplied."
+  },
+  "passed": true,
+  "checks": {
+    "noAbort": true,
+    "allVirtualUsersVerified": true,
+    "fullTargetHoldCompleted": true,
+    "failureRateWithinLimit": true,
+    "responseP95WithinLimit": true,
+    "dispatchP95WithinLimit": true,
+    "generatorEventLoopHealthy": true,
+    "holdHadNavigationRequests": true,
+    "holdFailureRateWithinLimit": true,
+    "holdResponseP95WithinLimit": true,
+    "holdDispatchP95WithinLimit": true
+  },
+  "abortReason": null,
+  "summary": {
+    "scheduledUsers": 100,
+    "activatedUsers": 100,
+    "readyUsers": 100,
+    "peakActiveUsers": 100,
+    "requests": 657,
+    "completed": 657,
+    "successes": 657,
+    "failures": 0,
+    "inflight": 0,
+    "peakInflight": 8,
+    "peakQueuedUsers": 4,
+    "wireBytes": 37780966,
+    "decodedBytes": 171153782,
+    "peakRssBytes": 74698640,
+    "readyAtMs": 5013.972417,
+    "targetStartedAtMs": 4951.365459,
+    "holdStartedAtMs": 5013.972417,
+    "holdFinishedAtMs": 15021.733417000001,
+    "durationSeconds": 15.118,
+    "measuredTrafficSeconds": 15.022,
+    "fullTargetHoldSeconds": 10.008,
+    "failureRate": 0,
+    "requestsPerSecond": 43.459,
+    "responseMs": {
+      "count": 657,
+      "p50": 64.11,
+      "p95": 111.477,
+      "p99": 130.812,
+      "max": 244.446
+    },
+    "dispatchMs": {
+      "count": 657,
+      "p50": 5.623,
+      "p95": 10.694,
+      "p99": 12.06,
+      "max": 57.314
+    },
+    "eventLoopP95Ms": 22.086,
+    "eventLoopMaxMs": 25.297
+  },
+  "failures": {},
+  "cache": {
+    "unknown": 657
+  },
+  "cloudflarePops": {
+    "MAA": 657
+  },
+  "routes": {
+    "/": {
+      "requests": 163,
+      "successes": 163,
+      "failures": 0,
+      "wireBytes": 570663,
+      "cache": {
+        "unknown": 163
+      },
+      "etags": [],
+      "responseMs": {
+        "count": 163,
+        "p50": 32.569,
+        "p95": 64.073,
+        "p99": 79.946,
+        "max": 81.039
+      }
+    },
+    "/labs/moons/": {
+      "requests": 165,
+      "successes": 165,
+      "failures": 0,
+      "wireBytes": 20090895,
+      "cache": {
+        "unknown": 165
+      },
+      "etags": [],
+      "responseMs": {
+        "count": 165,
+        "p50": 95.991,
+        "p95": 124.381,
+        "p99": 134.077,
+        "max": 135.279
+      }
+    },
+    "/labs/circles/": {
+      "requests": 165,
+      "successes": 165,
+      "failures": 0,
+      "wireBytes": 14861066,
+      "cache": {
+        "unknown": 165
+      },
+      "etags": [],
+      "responseMs": {
+        "count": 165,
+        "p50": 77.907,
+        "p95": 109.531,
+        "p99": 127.874,
+        "max": 239.734
+      }
+    },
+    "/learn/optimization-mathematics/": {
+      "requests": 164,
+      "successes": 164,
+      "failures": 0,
+      "wireBytes": 2258342,
+      "cache": {
+        "unknown": 164
+      },
+      "etags": [],
+      "responseMs": {
+        "count": 164,
+        "p50": 38.864,
+        "p95": 72.605,
+        "p99": 89.388,
+        "max": 244.446
+      }
+    }
+  },
+  "stages": {
+    "ramp": {
+      "requests": 175,
+      "successes": 175,
+      "failures": 0,
+      "responseMs": {
+        "count": 175,
+        "p50": 65.992,
+        "p95": 119.857,
+        "p99": 127.009,
+        "max": 135.279
+      },
+      "dispatchMs": {
+        "count": 175,
+        "p50": 5.824,
+        "p95": 10.654,
+        "p99": 11.995,
+        "max": 57.314
+      }
+    },
+    "waiting_for_verified_users": {
+      "requests": 2,
+      "successes": 2,
+      "failures": 0,
+      "responseMs": {
+        "count": 2,
+        "p50": 31.029,
+        "p95": 36.096,
+        "p99": 36.096,
+        "max": 36.096
+      },
+      "dispatchMs": {
+        "count": 2,
+        "p50": 3.331,
+        "p95": 14.396,
+        "p99": 14.396,
+        "max": 14.396
+      }
+    },
+    "hold": {
+      "requests": 480,
+      "successes": 480,
+      "failures": 0,
+      "responseMs": {
+        "count": 480,
+        "p50": 63.848,
+        "p95": 107.518,
+        "p99": 131.566,
+        "max": 244.446
+      },
+      "dispatchMs": {
+        "count": 480,
+        "p50": 5.365,
+        "p95": 10.687,
+        "p99": 12.06,
+        "max": 12.569
+      }
+    }
+  }
+}
