@@ -1,5 +1,31 @@
 # Release verification
 
+## Performance and distributed capacity — 7 November 2026
+
+The optimized site is live at <https://neural-math-lab.pages.dev/>. GitHub
+privacy was rechecked and restored to private before this release was pushed.
+The performance commit is attributed to `TARUNTEjjjj`.
+
+The complete local JavaScript suite passed **64 tests**. GitHub Actions also
+passed all **147 Python tests** and 64 JavaScript tests on both Linux Python
+3.9 and 3.12 configurations, including training and installed-package checks.
+See the exact workflow run for macOS status. The recorded experiment data
+remain unchanged; the browser handler and hosted asset delivery were optimized.
+
+The two-runner capacity workflow passed with 10,000 verified virtual learners
+overlapping for **118.840 seconds**. During that overlap, **19,797** complete
+build-matching responses had **zero failures**, **93.027 ms response p95** and
+**9.883 ms dispatch-delay p95**. This is an HTTP document-navigation workload
+with 60 seconds of reading time, not 10,000 full browser instances. The earlier
+single-laptop 10,000-user run failed latency/queue limits and is retained.
+See [the performance report](performance.md) for raw evidence and limitations.
+
+All **43 live HTTP checks** passed, including exact deployed assets, cache
+headers and five unavailable source paths. Browser checks covered full-gradient
+apply/undo during the measured overlap, invalid-input recovery, 390-pixel
+mobile layout and 75 rendered mathematics equations. No application console
+errors or warnings occurred in the tested interactions.
+
 ## Cloudflare Pages website — 5 November 2026
 
 The public learning site is served at <https://neural-math-lab.pages.dev/>.

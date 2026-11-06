@@ -151,3 +151,47 @@ Whole-run traffic totals are labeled separately. This separates the single-lapto
 constraint from two independent generators, without claiming global coverage
 or full-browser simulation. The workflow runs only when manually requested;
 it does not run on pushes or pull requests.
+
+## Final distributed result — 7 November 2026 (India)
+
+[The manual workflow](https://github.com/TARUNTEjjjj/neural-math-lab/actions/runs/42272532458)
+passed on source commit `244091de7fa57c1ec77dbdf1e0ab20159bd39800`.
+Both generators initialized all 5,000 learners and completed their 120-second
+holds. Their shared 10,000-learner window lasted **118.840 seconds**, from
+`2026-11-06T18:39:36.388Z` to `2026-11-06T18:41:35.228Z` (UTC).
+
+| Shared-overlap measure | Observed | Limit |
+| --- | ---: | ---: |
+| Concurrent initialized virtual learners | 10,000 | 10,000 |
+| Verified complete document responses | 19,797 | Actual navigation traffic required |
+| Failed responses | 0 (0%) | ≤1% |
+| Response p50 / p95 / p99 | 46.702 / 93.027 / 119.160 ms | p95 ≤2,000 ms |
+| Dispatch-delay p95 | 9.883 ms | ≤1,000 ms |
+| Verified overlap duration | 118.840 s | ≥65 s |
+
+The complete runs returned **29,992** valid documents, with zero failures,
+including their ramps. The reported Cloudflare edges were IAD, MSP and ORD.
+Peak requests in flight were 16 and 28 on the respective generators; the
+test did not put 10,000 HTTP requests in flight at once. Event-loop p95 was
+21.135 ms for each runner. Each runner independently passed all overall and
+hold-specific checks. The pooled overlap checks also all passed.
+
+Raw reports and the exact summary are retained in
+[`benchmarks/distributed-10000/`](../benchmarks/distributed-10000/README.md).
+Recomputing the downloaded reports locally against the current build produced
+the same summary. This supports the stated 60-second-reading navigation model
+from those generators and edges. It does not establish cold-start, long-soak,
+full-browser or worldwide performance, nor remove the failed laptop result.
+
+During the verified overlap, the production lab reloaded successfully and
+applied/undid a 64-row full-gradient step at learning rate 0.2. The displayed
+objective changed from 0.9182262 to 0.6848585 and back to 0.9182262. No browser
+warnings or errors appeared in those interactions. Separate 390-pixel mobile
+checks covered apply/undo, invalid-rate recovery and absence of horizontal
+page overflow. The optimization guide rendered 75 MathML equations without
+math errors. These are functional browser observations, not timing benchmarks.
+
+All 43 final HTTP checks passed: expected pages and assets matched the built
+bytes, hashed assets had immutable cache headers, HTML was revalidated, and
+five missing/private-source paths returned the exact custom 404 page.
+`live-browser-checks.json` and `live-release-http.json` record these checks.
