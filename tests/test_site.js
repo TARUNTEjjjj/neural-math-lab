@@ -11,7 +11,7 @@ const { buildSite, renderLesson } = require("../scripts/build-site.cjs");
 const root = path.resolve(__dirname, "..");
 const lessonSlugs = ["mathematics", "exercises", "advanced-mathematics", "advanced-exercises",
   "decision-mathematics", "decision-exercises", "optimization-mathematics", "optimization-exercises"];
-let temporary, output, files;
+let temporary, output, files, offlineSnapshots;
 
 function walk(directory, prefix = "") {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -21,22 +21,26 @@ function walk(directory, prefix = "") {
 }
 const read = (relative) => fs.readFileSync(path.join(output, relative), "utf8");
 const scripts = (html) => [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((match) => match[0]);
+const assetLinks = (html, extension) => [...html.matchAll(new RegExp(`(?:href|src)="(/assets/[^"?#]+\\.${extension})"`, "g"))].map((match) => match[1]);
+const digest = (content, encoding = "hex") => crypto.createHash("sha256").update(content).digest(encoding);
 
 before(() => {
   temporary = fs.mkdtempSync(path.join(os.tmpdir(), "neural-public-site-"));
+  offlineSnapshots = Object.fromEntries(["moons", "circles", "xor"].map((name) => [name,
+    fs.readFileSync(path.join(root, `examples/${name}/report.html`), "utf8")]));
   output = buildSite(path.join(temporary, "public"));
   files = walk(output);
 });
 after(() => { if (temporary) fs.rmSync(temporary, { recursive: true, force: true }); });
 
 test("public build contains only learning pages and explicitly required static assets", () => {
-  const expected = new Set(["index.html", "404.html", "site.css", "_headers",
-    "assets/katex/katex.min.css", "assets/katex/LICENSE.txt",
+  const expected = new Set(["index.html", "404.html", "_headers",
     ...["moons", "circles", "xor"].map((name) => `labs/${name}/index.html`),
     ...lessonSlugs.map((slug) => `learn/${slug}/index.html`)]);
   for (const file of expected) assert.ok(files.includes(file), "Missing public page/asset: " + file);
   for (const file of files) {
-    assert.ok(expected.has(file) || /^assets\/katex\/fonts\/KaTeX_[\w-]+\.(woff2?|ttf)$/.test(file), "Unexpected published file: " + file);
+    assert.ok(expected.has(file) || /^assets\/(?:site|lab)\.[a-f0-9]{16}\.(?:css|js)$/.test(file) ||
+      /^assets\/katex\/[a-f0-9]{16}\/(?:katex\.min\.css|LICENSE\.txt|fonts\/KaTeX_[\w-]+\.woff2)$/.test(file), "Unexpected published file: " + file);
     assert.doesNotMatch(file, /(^|\/)(?:\.git|\.env|node_modules|neural_math_lab|tests)(\/|$)|\.(?:py|json|map|md)$/);
   }
   assert.equal(files.filter((name) => name.endsWith(".html")).length, 13);
@@ -66,19 +70,33 @@ test("every generated local page, asset and fragment link resolves", () => {
   assert.ok(checked > 100, "The crawl should cover navigation, lessons, figures and report anchors.");
 });
 
-test("hosted reports preserve recorded data and runtime bytes with valid inline-script CSP", () => {
+test("hosted reports preserve exact data and runtime bytes with deferred integrity-checked scripts", () => {
   for (const name of ["moons", "circles", "xor"]) {
-    const original = fs.readFileSync(path.join(root, `examples/${name}/report.html`), "utf8");
+    const original = offlineSnapshots[name];
     const hosted = read(`labs/${name}/index.html`);
-    assert.deepEqual(scripts(hosted), scripts(original), `${name} runtime or recorded data changed`);
     assert.match(hosted, /aria-label="Learning website"/);
+    assert.equal(fs.readFileSync(path.join(root, `examples/${name}/report.html`), "utf8"), original,
+      "Building the hosted site must not rewrite the offline report.");
+    const originalStyle = original.match(/<style>([\s\S]*?)<\/style>/)[1];
+    const styleFiles = assetLinks(hosted, "css");
+    assert.equal(styleFiles.length, 1);
+    assert.ok(read(styleFiles[0].slice(1)).startsWith(originalStyle), "Original report styles must be preserved.");
+    assert.match(hosted, /style-src 'self' 'unsafe-inline'/);
     if (name !== "xor") {
-      const runtime = hosted.match(/<script>([\s\S]*?)<\/script>/)[1];
-      const expectedHash = crypto.createHash("sha256").update(runtime).digest("base64");
-      assert.ok(hosted.includes(`script-src 'sha256-${expectedHash}'`));
+      const dataTag = /<script id="experiment-data" type="application\/json">[\s\S]*?<\/script>/;
+      assert.equal(hosted.match(dataTag)[0], original.match(dataTag)[0], "Recorded data must stay byte-identical.");
+      assert.doesNotMatch(hosted, /<script>/, "Hosted runtime should not be duplicated inline.");
+      const originalRuntime = original.match(/<script>([\s\S]*?)<\/script>/)[1];
+      const runtimeFiles = assetLinks(hosted, "js");
+      assert.equal(runtimeFiles.length, 1);
+      assert.equal(read(runtimeFiles[0].slice(1)), originalRuntime);
+      assert.match(hosted, /<script defer src="\/assets\/lab\.[a-f0-9]{16}\.js"/);
+      assert.ok(hosted.includes(`integrity="sha256-${digest(originalRuntime, "base64")}"`));
+      assert.ok(hosted.includes(`script-src 'self'`));
+      assert.ok(original.includes(`script-src 'sha256-${digest(originalRuntime, "base64")}'`), "Offline CSP remains valid.");
       assert.match(hosted, /href="\/learn\/optimization-mathematics\/"/);
       assert.match(hosted, /href="\/learn\/optimization-exercises\/"/);
-    }
+    } else assert.equal(scripts(hosted).length, 0, "XOR remains a script-free report.");
   }
 });
 
@@ -88,14 +106,49 @@ test("lesson equations are pre-rendered with accessible MathML and local font as
     assert.doesNotMatch(html, /katex-error|KaTeX parse error|No math renderer found/);
     assert.match(html, /<math\b/);
     assert.match(html, /class="katex-html"/);
-    assert.match(html, /<link rel="stylesheet" href="\/assets\/katex\/katex.min.css">/);
+    assert.match(html, /<link rel="stylesheet" href="\/assets\/katex\/[a-f0-9]{16}\/katex.min.css">/);
     assert.equal(scripts(html).length, 0, "Lesson rendering must not need browser JavaScript.");
   }
-  for (const match of read("assets/katex/katex.min.css").matchAll(/url\(["']?([^)'" ]+)["']?\)/g)) {
-    const font = path.posix.normalize(path.posix.join("assets/katex", match[1]));
+  const mathCss = files.find((name) => /^assets\/katex\/[a-f0-9]{16}\/katex\.min\.css$/.test(name));
+  assert.ok(mathCss, "Locally served maths stylesheet is required.");
+  let references = 0;
+  for (const match of read(mathCss).matchAll(/url\(["']?([^)'" ]+)["']?\)/g)) {
+    const font = path.posix.normalize(path.posix.join(path.posix.dirname(mathCss), match[1]));
     assert.ok(files.includes(font), "Missing locally served math font: " + font);
+    assert.match(font, /\.woff2$/);
+    references++;
   }
-  assert.match(read("assets/katex/LICENSE.txt"), /MIT License/);
+  assert.ok(references > 10, "Check the complete set of maths font references.");
+  assert.match(read(path.posix.join(path.posix.dirname(mathCss), "LICENSE.txt")), /MIT License/);
+});
+
+test("shared assets are content-addressed and immutable caching never applies to HTML", () => {
+  for (const file of files.filter((name) => /^assets\/(?:site|lab)\./.test(name))) {
+    const hash = file.match(/\.([a-f0-9]{16})\.(?:js|css)$/)[1];
+    assert.equal(hash, digest(fs.readFileSync(path.join(output, file))).slice(0, 16), "Stale asset fingerprint: " + file);
+  }
+  const mathCss = files.find((name) => /^assets\/katex\/[a-f0-9]{16}\/katex\.min\.css$/.test(name));
+  const mathDirectory = path.posix.dirname(mathCss);
+  const mathHash = crypto.createHash("sha256").update(read(mathCss));
+  for (const file of files.filter((name) => name.startsWith(mathDirectory + "/fonts/")).sort()) {
+    mathHash.update(path.posix.basename(file)).update(fs.readFileSync(path.join(output, file)));
+  }
+  assert.equal(mathDirectory.split("/").at(-1), mathHash.digest("hex").slice(0, 16), "Maths font or CSS changes must invalidate its directory URL.");
+  const headerBlocks = read("_headers").trim().split(/\n\s*\n/);
+  assert.ok(headerBlocks.some((block) => block.startsWith("/assets/*\n") && /Cache-Control: public, max-age=31536000, immutable/.test(block)));
+  for (const block of headerBlocks) if (/immutable/.test(block)) assert.ok(block.startsWith("/assets/*\n"), "HTML must remain revalidatable after deployment.");
+  assert.ok(files.filter((file) => file.endsWith(".html")).every((file) => !file.startsWith("assets/")));
+});
+
+test("switching advanced labs reuses one script and stylesheet; reading pages share their stylesheet", () => {
+  const moons = read("labs/moons/index.html"), circles = read("labs/circles/index.html");
+  assert.deepEqual(assetLinks(moons, "js"), assetLinks(circles, "js"));
+  assert.deepEqual(assetLinks(moons, "css"), assetLinks(circles, "css"));
+  const siteCss = assetLinks(read("index.html"), "css").find((name) => /^\/assets\/site\./.test(name));
+  assert.ok(siteCss);
+  for (const page of ["404.html", ...lessonSlugs.map((slug) => `learn/${slug}/index.html`)]) {
+    assert.ok(assetLinks(read(page), "css").includes(siteCss), page + " must reuse the home stylesheet.");
+  }
 });
 
 test("bad equations and unresolved guide references fail the build instead of publishing broken lessons", () => {

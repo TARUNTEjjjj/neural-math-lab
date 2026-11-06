@@ -10,6 +10,9 @@
   const fmt = (value) => value === 0 ? "0" : Number(value.toPrecision(7)).toString();
   const MAX_STEPS = 50;
   let current, history = [], undo = [];
+  // Parameters are replaced, never mutated. Keep only the latest computation
+  // for each dependency set; typing a rate need not rebuild an unchanged curve.
+  let calculations, drawnSlice, drawnHistory;
   const canvas = el("slice"), ctx = canvas.getContext("2d");
   const initial = data.checkpoints[0];
   el("origin").options[0].textContent = "Initial checkpoint · epoch " + initial.epoch;
@@ -40,8 +43,12 @@
     body.append(tr);
   }
   function historyTable() {
-    const body = el("history"); body.replaceChildren();
-    history.forEach((item, i) => row(body, [i, fmt(item.bce), fmt(item.penalty), fmt(item.loss), i ? fmt(item.change) : "Starting point"]));
+    const last = history[history.length - 1];
+    if (!drawnHistory || drawnHistory.length !== history.length || drawnHistory.last !== last) {
+      const body = el("history"); body.replaceChildren();
+      history.forEach((item, i) => row(body, [i, fmt(item.bce), fmt(item.penalty), fmt(item.loss), i ? fmt(item.change) : "Starting point"]));
+      drawnHistory = { length: history.length, last };
+    }
     el("state").textContent = "Temporary sandbox · " + undo.length + " / " + MAX_STEPS + " steps";
     el("undo").disabled = undo.length === 0;
   }
@@ -73,9 +80,20 @@
   function calculate() {
     const samples = batch(), coordinate = coordinates[Number(el("parameter").value)];
     const rate = number("rate", 1e-6, 10), epsilon = number("epsilon", 1e-8, .1), radius = number("radius", .001, 5);
-    const check = math.gradientCheck(current, samples, coordinate, epsilon);
-    const proposed = math.proposeStep(current, samples, rate, el("direction").value === "full" ? null : coordinate);
-    const slice = math.lossSlice(current, samples, coordinate, radius, 41);
+    if (!calculations || calculations.parameters !== current || calculations.rows !== samples.X.length || calculations.l2 !== samples.l2) {
+      calculations = { parameters: current, rows: samples.X.length, l2: samples.l2 };
+    }
+    const direction = el("direction").value === "full" ? null : coordinate;
+    if (!calculations.check || calculations.check.coordinate !== coordinate || calculations.check.epsilon !== epsilon) {
+      calculations.check = { coordinate, epsilon, value: math.gradientCheck(current, samples, coordinate, epsilon) };
+    }
+    if (!calculations.proposal || calculations.proposal.direction !== direction || calculations.proposal.rate !== rate) {
+      calculations.proposal = { direction, rate, value: math.proposeStep(current, samples, rate, direction) };
+    }
+    if (!calculations.slice || calculations.slice.coordinate !== coordinate || calculations.slice.radius !== radius) {
+      calculations.slice = { coordinate, radius, value: math.lossSlice(current, samples, coordinate, radius, 41) };
+    }
+    const check = calculations.check.value, proposed = calculations.proposal.value, slice = calculations.slice.value;
     return { samples, coordinate, rate, epsilon, check, proposed, slice };
   }
   function invalidate(error) {
@@ -84,7 +102,7 @@
     ["analytic", "numerical", "gradient-error", "bce", "penalty", "before", "after", "predicted", "actual", "norm"].forEach((id) => { el(id).textContent = "—"; });
     el("verdict").textContent = "Correct the controls to calculate a new proposal.";
     el("slice-caption").textContent = "No slice shown for invalid controls.";
-    el("slice-rows").replaceChildren(); ctx.clearRect(0, 0, canvas.width, canvas.height);
+    el("slice-rows").replaceChildren(); ctx.clearRect(0, 0, canvas.width, canvas.height); drawnSlice = null;
   }
   function render() {
     try {
@@ -98,9 +116,11 @@
       el("slice-caption").textContent = coordinate.label + " = " + fmt(value) + ". The dot is the current value (δ = 0). This is a one-coordinate slice, not the path of an all-parameter update.";
       const count = samples.X.length;
       el("batch-detail").textContent = count + " fixed training row" + (count === 1 ? "" : "s") + ", using the saved training standardizer. Changing the starting model, batch or λ resets the sandbox.";
-      const body = el("slice-rows"); body.replaceChildren();
-      slice.forEach((point) => row(body, [fmt(point.offset), fmt(point.loss), fmt(point.tangent)]));
-      drawSlice(slice);
+      if (drawnSlice !== slice) {
+        const body = el("slice-rows"); body.replaceChildren();
+        slice.forEach((point) => row(body, [fmt(point.offset), fmt(point.loss), fmt(point.tangent)]));
+        drawSlice(slice); drawnSlice = slice;
+      }
       const uphill = proposed.actualChange > 0;
       el("verdict").classList.toggle("uphill", uphill);
       el("verdict").textContent = uphill ? "This proposal increases the objective. The local tangent is not a guarantee for this step size; try a smaller learning rate or apply and undo to explore." :

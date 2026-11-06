@@ -3,6 +3,7 @@
 // Publish an explicit allowlist, never the checkout or the whole examples folder.
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const MarkdownIt = require("markdown-it");
 const katex = require("katex");
 const texmath = require("markdown-it-texmath");
@@ -64,7 +65,7 @@ function renderLesson(slug, source) {
   return page(LESSONS[slug], `<main id="main" class="site-main lesson-layout"><article class="lesson-content"><p class="eyebrow">THE MATHS / LEARNING NOTES</p>${rendered}<p><a class="button" href="/labs/moons/#gradient-lab">Try the gradient lab →</a></p></article><aside class="lesson-sidebar"><h2>On this page</h2><ol>${headings.join("")}</ol><h2>Keep learning</h2><ul>${links()}</ul></aside></main>`, '<link rel="stylesheet" href="/assets/katex/katex.min.css">');
 }
 
-function hostedReport(name, original) {
+function hostedReport(name, original, publishAsset) {
   const nav = `<nav class="hosted-nav" aria-label="Learning website"><a href="/">← Learning home</a><a href="/labs/moons/">Moons</a><a href="/labs/circles/">Circles</a><a href="/labs/xor/">XOR</a><a href="/learn/optimization-mathematics/">Maths guides</a></nav>`;
   const style = '.hosted-nav{display:flex;flex-wrap:wrap;gap:12px 24px;padding:16px max(16px,calc((100% - 1280px)/2));background:#193e3b;color:#fff;font:600 13px system-ui}.hosted-nav a{color:#fff;text-decoration:none}.hosted-nav a:hover{text-decoration:underline}.hosted-nav a:focus-visible{outline:2px solid #fff;outline-offset:4px}';
   let html = original.replace("</style>", style + "</style>");
@@ -75,6 +76,16 @@ function hostedReport(name, original) {
   }
   html = html.replace("OFFLINE REPORT", "BROWSER LEARNING LAB");
   html = html.replace("Generated locally · No telemetry · No remote assets", "Browser calculations · Temporary sandbox · No sign-in required");
+  if (publishAsset) {
+    // Share cacheable bytes between hosted labs. Offline reports stay self-contained.
+    html = html.replace(/<style>([\s\S]*?)<\/style>/, (_, css) => `<link rel="stylesheet" href="${publishAsset("lab", "css", css)}">`);
+    html = html.replace(/<script>([\s\S]*?)<\/script>/, (_, script) => {
+      const integrity = crypto.createHash("sha256").update(script).digest("base64");
+      return `<script defer src="${publishAsset("lab", "js", script)}" integrity="sha256-${integrity}" crossorigin="anonymous"></script>`;
+    });
+    html = html.replace("style-src 'unsafe-inline'", "style-src 'self' 'unsafe-inline'")
+      .replace(/script-src 'sha256-[^']+'/g, "script-src 'self'");
+  }
   return html;
 }
 
@@ -89,21 +100,41 @@ function buildSite(output = path.join(ROOT, "dist")) {
     const file = path.join(destination, relative);
     fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, content);
   }
+  function publishAsset(name, extension, content) {
+    const hash = crypto.createHash("sha256").update(content).digest("hex").slice(0, 16);
+    const relative = `assets/${name}.${hash}.${extension}`;
+    write(relative, content); return "/" + relative;
+  }
+  const siteStyle = publishAsset("site", "css", fs.readFileSync(path.join(ROOT, "site/site.css")));
+  function withSharedStyle(html) { return html.replaceAll('href="/site.css"', `href="${siteStyle}"`); }
   const home = fs.readFileSync(path.join(ROOT, "site/index.html"), "utf8");
-  write("index.html", home.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${CSP}">`));
-  write("site.css", fs.readFileSync(path.join(ROOT, "site/site.css")));
+  write("index.html", withSharedStyle(home.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${CSP}">`)));
   for (const name of ["moons", "circles", "xor"]) {
-    write(`labs/${name}/index.html`, hostedReport(name, fs.readFileSync(path.join(ROOT, `examples/${name}/report.html`), "utf8")));
+    write(`labs/${name}/index.html`, hostedReport(name, fs.readFileSync(path.join(ROOT, `examples/${name}/report.html`), "utf8"), publishAsset));
   }
-  for (const slug of Object.keys(LESSONS)) write(`learn/${slug}/index.html`, renderLesson(slug, fs.readFileSync(path.join(ROOT, `docs/${slug}.md`), "utf8")));
   const katexRoot = path.resolve(path.dirname(require.resolve("katex")), "..");
-  write("assets/katex/katex.min.css", fs.readFileSync(path.join(katexRoot, "dist/katex.min.css")));
-  write("assets/katex/LICENSE.txt", fs.readFileSync(path.join(katexRoot, "LICENSE")));
-  for (const font of fs.readdirSync(path.join(katexRoot, "dist/fonts"))) {
-    if (/\.(woff2?|ttf)$/.test(font)) write("assets/katex/fonts/" + font, fs.readFileSync(path.join(katexRoot, "dist/fonts", font)));
+  // Modern browsers use WOFF2. Include only those files and fingerprint the whole
+  // dependency directory so a future KaTeX upgrade cannot reuse stale font URLs.
+  const fontNames = fs.readdirSync(path.join(katexRoot, "dist/fonts")).filter(name => name.endsWith(".woff2")).sort();
+  const mathCss = fs.readFileSync(path.join(katexRoot, "dist/katex.min.css"), "utf8")
+    .replace(/src:([^;]+);/g, (_, sources) => {
+      const woff2 = sources.split(",").filter(source => source.includes(".woff2"));
+      if (woff2.length !== 1) throw new Error("Expected one WOFF2 source per font face.");
+      return "src:" + woff2[0] + ";";
+    });
+  const mathHash = crypto.createHash("sha256").update(mathCss);
+  for (const name of fontNames) mathHash.update(name).update(fs.readFileSync(path.join(katexRoot, "dist/fonts", name)));
+  const mathDirectory = "assets/katex/" + mathHash.digest("hex").slice(0, 16);
+  write(mathDirectory + "/katex.min.css", mathCss);
+  write(mathDirectory + "/LICENSE.txt", fs.readFileSync(path.join(katexRoot, "LICENSE")));
+  for (const font of fontNames) write(mathDirectory + "/fonts/" + font, fs.readFileSync(path.join(katexRoot, "dist/fonts", font)));
+  for (const slug of Object.keys(LESSONS)) {
+    const html = withSharedStyle(renderLesson(slug, fs.readFileSync(path.join(ROOT, `docs/${slug}.md`), "utf8")))
+      .replace('href="/assets/katex/katex.min.css"', `href="/${mathDirectory}/katex.min.css"`);
+    write(`learn/${slug}/index.html`, html);
   }
-  write("404.html", page("Page not found", '<main id="main" class="site-main"><p class="eyebrow">404 / FIND YOUR WAY BACK</p><h1>This page is not in the lab.</h1><p>Choose an experiment or a maths guide from the learning home.</p><a class="button" href="/">Back to Neural Math Lab →</a></main>'));
-  write("_headers", "/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'; form-action 'none'\n");
+  write("404.html", withSharedStyle(page("Page not found", '<main id="main" class="site-main"><p class="eyebrow">404 / FIND YOUR WAY BACK</p><h1>This page is not in the lab.</h1><p>Choose an experiment or a maths guide from the learning home.</p><a class="button" href="/">Back to Neural Math Lab →</a></main>')));
+  write("_headers", "/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'; form-action 'none'\n\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n");
   return destination;
 }
 

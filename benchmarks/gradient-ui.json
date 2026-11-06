@@ -1,0 +1,26 @@
+{
+  "before": {
+    "median_ms": 4.009749999999997,
+    "p95_ms": 4.10029099999997,
+    "measured_edits": 200,
+    "batch_rows": 64,
+    "mathCalls": {
+      "gradientCheck": 234,
+      "proposeStep": 234,
+      "lossSlice": 234
+    }
+  },
+  "after": {
+    "median_ms": 0.24079200000005585,
+    "p95_ms": 0.31204200000001947,
+    "measured_edits": 200,
+    "batch_rows": 64,
+    "mathCalls": {
+      "gradientCheck": 3,
+      "proposeStep": 234,
+      "lossSlice": 3
+    }
+  },
+  "baselineCommit": "066d6281f11e2bd5f414797ac8d744ef66bf2182",
+  "method": "Actual UI event handlers under the existing VM/DOM adapter. Recorded Moons model, 64 training rows, 200 warmed learning-rate edits. Single-machine measurement; not browser paint or INP."
+}

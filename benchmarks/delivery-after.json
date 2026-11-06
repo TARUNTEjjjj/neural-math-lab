@@ -1,0 +1,41 @@
+{
+  "note": "Build size estimates; Node compression defaults, not live wire metrics. First visit includes HTML plus CSS and JS; cross-lab visits reuse hashed CSS/JS.",
+  "assets": [
+    {
+      "path": "index.html",
+      "rawBytes": 10477,
+      "gzipBytes": 3551,
+      "brotliBytes": 2780
+    },
+    {
+      "path": "labs/moons/index.html",
+      "rawBytes": 482820,
+      "gzipBytes": 127811,
+      "brotliBytes": 89117
+    },
+    {
+      "path": "labs/circles/index.html",
+      "rawBytes": 379411,
+      "gzipBytes": 98142,
+      "brotliBytes": 68032
+    },
+    {
+      "path": "learn/optimization-mathematics/index.html",
+      "rawBytes": 165719,
+      "gzipBytes": 15123,
+      "brotliBytes": 10354
+    },
+    {
+      "path": "assets/lab.938192151f1c6e05.css",
+      "rawBytes": 17691,
+      "gzipBytes": 4724,
+      "brotliBytes": 4112
+    },
+    {
+      "path": "assets/lab.70211d2a92b6fcc2.js",
+      "rawBytes": 41996,
+      "gzipBytes": 11962,
+      "brotliBytes": 10510
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "sourceCommit": "066d6281f11e2bd5f414797ac8d744ef66bf2182",
+  "note": "Build sizes; Brotli/gzip estimates use Node defaults, not live wire measurement.",
+  "assets": [
+    {
+      "path": "index.html",
+      "rawBytes": 10453,
+      "gzipBytes": 3534,
+      "brotliBytes": 2762
+    },
+    {
+      "path": "labs/moons/index.html",
+      "rawBytes": 540986,
+      "gzipBytes": 143824,
+      "brotliBytes": 103442
+    },
+    {
+      "path": "labs/circles/index.html",
+      "rawBytes": 437577,
+      "gzipBytes": 115002,
+      "brotliBytes": 82406
+    },
+    {
+      "path": "learn/optimization-mathematics/index.html",
+      "rawBytes": 165678,
+      "gzipBytes": 15096,
+      "brotliBytes": 10321
+    },
+    {
+      "path": "site.css",
+      "rawBytes": 15476,
+      "gzipBytes": 4116,
+      "brotliBytes": 3567
+    }
+  ]
+}

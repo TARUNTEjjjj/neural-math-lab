@@ -1,0 +1,67 @@
+name: Owner-requested distributed capacity check
+
+# Intentionally manual: normal pushes/PRs never generate production load.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neural-math-lab-production-capacity
+  cancel-in-progress: false
+
+jobs:
+  navigation:
+    name: 5000 learners / runner ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Verify 5000 learners with a two-minute overlap window
+        run: >-
+          node scripts/load-test.cjs --vus 5000 --ramp-seconds 60
+          --hold-seconds 120 --think-seconds 60 --max-rps 200
+          --max-inflight 128 --connections 8
+          --output capacity-${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capacity-${{ matrix.shard }}
+          path: capacity-${{ matrix.shard }}.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  verify-overlap:
+    name: Verify 10000 concurrent virtual learners
+    needs: navigation
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: capacity-*
+          path: capacity-results
+          merge-multiple: true
+      - run: node scripts/summarize-capacity.cjs capacity-results/capacity-1.json capacity-results/capacity-2.json --output capacity-summary.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capacity-summary
+          path: capacity-summary.json
+          retention-days: 7
