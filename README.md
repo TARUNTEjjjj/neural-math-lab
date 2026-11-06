@@ -6,7 +6,7 @@ This private learning project belongs to [TARUNTEjjjj](https://github.com/TARUNT
 
 ## Open a finished experiment first
 
-Download or clone the repository and open one of these files locally in a browser:
+Use the [hosted learning website](https://neural-math-lab.pages.dev/) in Chrome, or download/clone the repository and open one of these files locally in a browser:
 
 - **[Moons experiment](examples/moons/report.html):** two curved classes, checkpoint replay, and held-out evaluation.
 - **[Circles experiment](examples/circles/report.html):** concentric classes that make the difference from a straight-line baseline visible.
@@ -14,7 +14,7 @@ Download or clone the repository and open one of these files locally in a browse
 
 GitHub displays the HTML source rather than running the reports. Once downloaded, each report opens directly from disk without a web server, account, or internet connection. All scripts, styles, figures, and experiment data are embedded. Replay needs JavaScript; recorded metrics and a static learning-curve figure remain readable without it.
 
-The controls inspect a **recorded experiment**. They do not retrain the model in your browser. Use the Python commands below to change the experiment and produce a new report.
+Replay and diagnostics inspect a **recorded experiment**. The new **Gradient lab** also performs temporary gradient-descent steps on a separate copy using training rows only. Saved models and evaluation results stay fixed. Use the Python commands below to produce a new recorded experiment.
 
 ![Training and validation loss in the included moons experiment](examples/moons/learning.svg)
 
@@ -57,6 +57,18 @@ The default output directory is `runs/<dataset>`, so `experiment --dataset circl
 The browser's prediction calculations are checked against the saved Python predictions. The exportable SVG figures and full machine-readable history remain available alongside the report.
 
 Point inspection and split visibility reuse the current boundary grid instead of running thousands of identical predictions again. Changing a checkpoint or model rebuilds that grid; the cache keeps only one grid and does not change the recorded mathematics.
+
+### Explore the gradient lab
+
+Open a moons or circles report and choose **Gradient lab** in the navigation:
+
+1. Start from the initial checkpoint or the validation-selected model, and choose the first 1, 16, or 64 training rows (capped by the available training rows).
+2. Select any weight or bias. Compare its backpropagation derivative with a central finite difference; change ε to explore approximation and rounding error.
+3. Read a loss slice and its tangent while all other parameters stay fixed. A numeric table accompanies the chart.
+4. Preview a step on that coordinate or all parameters. Compare the first-order predicted change with the actual objective before applying it; a large learning rate can increase loss.
+5. Apply up to 50 temporary steps, undo individual steps, or reset. Changing the source checkpoint, training batch or L2 coefficient resets the sandbox.
+
+The sandbox uses plain gradient descent even when the recorded run used Adam. It keeps no persistent state, uses no validation/test rows for updates, and never rewrites the report’s recorded results. Its bounded batch keeps the experiment responsive offline. Read [the optimization derivation](docs/optimization-mathematics.md) and [eight worked exercises](docs/optimization-exercises.md) alongside the controls.
 
 ### Change one setting at a time
 
@@ -143,14 +155,14 @@ Reports include their experiment's coordinates, labels, weights, and results. Sh
 
 ```sh
 python -m unittest discover -s tests -v
-node --test tests/test_report.js
+node --test tests/test_*.js
 ```
 
-Node.js 22 or newer is recommended for the browser-logic tests; it is not needed for Python training or for opening a report. No npm dependencies are required.
+Node.js 22 or newer is required for the website build checks. Run `npm ci --ignore-scripts` first; the build dependencies render the learning guides and equations before publication. Node and npm are not needed for Python training or for using a report.
 
 Tests cover independently computed derivatives, numerical stability, optimizer arithmetic, regularization gradients, split disjointness, training-only scaling, test-data isolation, best-checkpoint restoration, JSON pipeline round trips, real CLI runs, report artifacts, and browser/Python prediction agreement. The central-difference gradient checks calculate their reference values from perturbed losses rather than reusing backpropagation.
 
-GitHub Actions is configured to run on Linux with Python 3.9, 3.12, and 3.15 and Node.js 22, 24, and 26, and on macOS with Python 3.15 and Node.js 26. A separate Linux job runs the Python tests with the oldest accepted NumPy (1.26.0) and Matplotlib (3.7.0). The workflow also exercises report generation from an installed package outside the source checkout. See [verification notes](docs/verification.md) and the workflow run for the exact commit's observed results.
+GitHub Actions is configured to run on Linux with Python 3.9, 3.12, and 3.15 and Node.js 22, 24, and 26, and on macOS with Python 3.15 and Node.js 26. A separate Linux job runs the Python tests with the oldest accepted NumPy (1.26.0) and Matplotlib (3.7.0). The workflow also builds the website and exercises report generation from an installed package outside the source checkout. See [verification notes](docs/verification.md) and the workflow run for the exact commit's observed results.
 
 ## Read the source
 
@@ -163,7 +175,7 @@ GitHub Actions is configured to run on Linux with Python 3.9, 3.12, and 3.15 and
 | `neural_math_lab/storage.py` | Validated network and preprocessing pipeline JSON |
 | `neural_math_lab/cli.py` | Runnable training, experiment, explanation, and gradient-check commands |
 | `neural_math_lab/experiment_report.py` | Advanced artifacts and scientific figures from actual run data |
-| `neural_math_lab/assets/` | Embedded report layout, style, checkpoint replay, and point calculations |
+| `neural_math_lab/assets/` | Embedded report layout, replay, point calculations, and temporary optimization sandbox |
 | `neural_math_lab/report.py` | Introductory XOR report |
 | `tests/` | Independent mathematical, data-boundary, CLI, persistence, and browser-logic checks |
 
@@ -176,4 +188,15 @@ The explanations and implementation are original. Further reading:
 - [NumPy: `logaddexp`](https://numpy.org/doc/stable/reference/generated/numpy.logaddexp.html), used for stable loss calculations.
 - [PyTorch: automatic differentiation](https://docs.pytorch.org/tutorials/beginner/basics/autogradqs_tutorial.html), for comparison after understanding the manual version.
 
-The repository is intended to remain private unless its owner chooses otherwise. There is no public deployment or telemetry. Dependencies have their own licenses. XOR, moons, and circles are generated locally; no third-party dataset is redistributed.
+The repository remains private. The public Cloudflare Pages site serves only the learning pages, synthetic example reports, and their required display assets. Browser-delivered HTML, JavaScript, data and weights are necessarily readable by visitors; the Python package source, Git history and private repository are not published. The application has no telemetry or user accounts. Dependencies have their own licenses. XOR, moons, and circles are generated locally; no third-party dataset is redistributed.
+
+### Build and publish the learning website
+
+```sh
+npm ci --ignore-scripts
+npm test
+npm run build
+npx wrangler pages deploy dist --project-name neural-math-lab --branch main
+```
+
+`scripts/build-site.cjs` uses an explicit allowlist and creates `dist/`: a learning home, three reports, eight linked maths/exercise guides, pre-rendered equations with local fonts, and a real 404 page. Report runtime bytes and embedded experiment data are preserved. Never deploy the repository root or entire `examples/` directory. The build requires no Cloudflare credentials; publishing uses Wrangler's authenticated session. This is a Direct Upload Pages project: GitHub pushes run verification but do not automatically publish. Repeat the build and deploy command to update the live site.

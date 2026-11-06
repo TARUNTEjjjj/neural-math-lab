@@ -185,6 +185,21 @@ class AdvancedCommandLineTests(unittest.TestCase):
             self.assertEqual(ET.parse(self.output / name).getroot().tag, "{http://www.w3.org/2000/svg}svg")
             self.assertGreater((self.output / name).stat().st_size, 1000)
 
+    def test_report_embeds_gradient_lab_assets_and_preserves_saved_model(self):
+        assets = ROOT / "neural_math_lab" / "assets"
+        for name in ("optimization.js", "optimization-ui.js", "optimization.css"):
+            self.assertIn((assets / name).read_text(encoding="utf-8"), self.report)
+        self.assertIn('id="gradient-lab"', self.report)
+        self.assertIn('id="optimization-apply"', self.report)
+        self.assertIn('id="optimization-undo"', self.report)
+        self.assertIn('id="optimization-history"', self.report)
+        self.assertIn("temporary copy in this tab", self.report)
+        self.assertIn("No test or validation rows enter these calculations", self.report)
+        self.assertNotIn("${OPTIMIZATION_LAB}", self.report)
+        network, _, _, _ = load_pipeline(self.output / "pipeline.json")
+        for name, values in network.parameters.items():
+            np.testing.assert_array_equal(values, self.document["model"]["parameters"][name])
+
     def test_explain_applies_the_saved_standardizer_before_forward_pass(self):
         network = Network(hidden=2, seed=7)
         for parameter in network.parameters.values():

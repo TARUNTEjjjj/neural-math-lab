@@ -1,0 +1,40 @@
+<section id="gradient-lab" class="panel optimization-panel">
+  <div class="section-heading"><div><p class="eyebrow">05 / GRADIENT LAB</p><h2>Take a step. Understand why it works.</h2></div><span id="optimization-state" class="pill" aria-live="polite">Temporary sandbox · 0 steps</span></div>
+  <p class="section-intro">Choose a weight or bias. Compare its exact backpropagation derivative with a numerical estimate, then see a proposed descent step before applying it. These calculations use only a small, fixed batch of training examples.</p>
+  <p class="scope-note">This sandbox changes a temporary copy in this tab. The recorded model, replay, validation-selected threshold and held-out results stay fixed. Reloading discards sandbox steps. This is plain gradient descent, even when the original run used Adam.</p>
+  <noscript><p>Enable JavaScript to use the sandbox. The derivation and worked example below are still readable offline.</p></noscript>
+  <div class="optimization-settings">
+    <label>Starting model<select id="optimization-origin"><option value="initial">Initial checkpoint</option><option value="selected">Validation-selected model</option></select></label>
+    <label>Training batch<select id="optimization-batch"><option value="1">First training row</option><option value="16" selected>First 16 training rows</option><option value="64">First 64 training rows</option></select></label>
+    <label>L2 coefficient λ<input id="optimization-l2" type="number" min="0" max="10" step="any" value="0.001"></label>
+  </div>
+  <p id="optimization-batch-detail" class="caption">Changing the starting model, batch or λ resets the sandbox. No test or validation rows enter these calculations.</p>
+  <div class="optimization-grid">
+    <div class="optimization-plot">
+      <div class="controls"><label>Parameter to inspect<select id="optimization-parameter"></select></label><label>Slice radius ±<input id="optimization-radius" type="number" min="0.001" max="5" step="any" value="1"></label></div>
+      <canvas id="optimization-slice" width="720" height="360" role="img" aria-label="Objective along the selected parameter, with a first-order tangent. Numerical values are available below.">Use the numerical slice table below.</canvas>
+      <div class="legend"><span><i class="line train"></i> Actual objective J</span><span><i class="line validation"></i> Tangent J + g·δ</span><span>All other parameters fixed</span></div>
+      <p id="optimization-slice-caption" class="caption"></p>
+      <details><summary>Read numerical slice values</summary><div class="table-scroll optimization-scroll"><table><thead><tr><th>Parameter change δ</th><th>Actual J</th><th>Tangent J + g·δ</th></tr></thead><tbody id="optimization-slice-rows"></tbody></table></div></details>
+      <div class="optimization-derivatives" aria-live="polite"><div><span>Analytic derivative g</span><strong id="optimization-analytic">—</strong></div><div><span>Central difference</span><strong id="optimization-numerical">—</strong></div><div><span>Absolute difference</span><strong id="optimization-gradient-error">—</strong></div></div>
+      <label class="epsilon-control">Finite-difference ε<input id="optimization-epsilon" type="number" min="0.00000001" max="0.1" step="any" value="0.00001"></label>
+      <p id="optimization-gradient-explanation" class="caption">Numerical derivative = [J(θ + ε) − J(θ − ε)] / (2ε). Smaller ε is not always more accurate: rounding competes with approximation error.</p>
+    </div>
+    <aside class="optimization-step">
+      <p class="eyebrow">PREVIEW AN UPDATE</p><h3>Descent is a local prediction.</h3>
+      <label>Update direction<select id="optimization-direction"><option value="coordinate">Selected parameter only</option><option value="full">All parameters · gradient descent</option></select></label>
+      <label>Learning rate η<input id="optimization-rate" type="number" min="0.000001" max="10" step="any" value="0.1"></label>
+      <dl class="optimization-values"><div><dt>Mean BCE</dt><dd id="optimization-bce">—</dd></div><div><dt>L2 penalty</dt><dd id="optimization-penalty">—</dd></div><div><dt>Current objective J</dt><dd id="optimization-before">—</dd></div><div><dt>Proposed objective</dt><dd id="optimization-after">—</dd></div><div><dt>Predicted change · first order</dt><dd id="optimization-predicted">—</dd></div><div><dt>Actual change</dt><dd id="optimization-actual">—</dd></div><div><dt>Full gradient norm ‖∇J‖</dt><dd id="optimization-norm">—</dd></div></dl>
+      <p id="optimization-verdict" class="optimization-verdict" aria-live="polite"></p>
+      <div class="optimization-buttons"><button id="optimization-apply" type="button" class="primary">Apply this step</button><button id="optimization-undo" type="button" disabled>Undo step</button><button id="optimization-reset" type="button">Reset sandbox</button><button id="optimization-large" type="button">Try η = 10</button></div>
+      <p class="caption">Up to 50 temporary steps. An uphill proposal can be applied deliberately to study overshooting, then undone. Each click recomputes the gradient at the current parameters.</p>
+    </aside>
+  </div>
+  <p id="optimization-error" class="error" role="alert"></p>
+  <details><summary>Inspect the sandbox step history</summary><div class="table-scroll optimization-scroll"><table><thead><tr><th>Step</th><th>Mean BCE</th><th>L2 penalty</th><th>Objective J</th><th>Actual change</th></tr></thead><tbody id="optimization-history"></tbody></table></div><p class="caption">Each row uses the same batch and λ. This is a training objective, not a new estimate of held-out performance.</p></details>
+  <div class="lesson-grid optimization-lessons">
+    <details><summary>Follow the derivative through the network</summary><p>Standardize each raw input using the saved training mean and scale. For B training rows, the output derivative is <code>dZ₂ = (P − Y) / B</code>. Then <code>dW₂ = HᵀdZ₂ + λW₂</code>, <code>dZ₁ = (dZ₂W₂ᵀ) ⊙ (1 − H²)</code>, and <code>dW₁ = X̃ᵀdZ₁ + λW₁</code>. Bias derivatives sum over rows and have no L2 penalty.</p><p>The objective is mean BCE plus <code>½λ(‖W₁‖² + ‖W₂‖²)</code>. Computing BCE from logits avoids taking log(0) when sigmoid rounds to 0 or 1.</p></details>
+    <details><summary>Why can a descent step increase loss?</summary><p>The tangent predicts <code>ΔJ ≈ −ηg²</code> for one parameter, or <code>−η‖∇J‖²</code> for all parameters. This prediction is local. Curvature matters for a finite step, so a large learning rate can overshoot.</p><p>The chart varies only the selected coordinate; an all-parameter step follows another direction. Neither a flat slice nor a small gradient proves a global minimum. Compare the predicted and actual changes, then use Undo to try a smaller η.</p></details>
+    <details><summary>Work one update by hand</summary><p>Take one standardized input [0, 0] with target 1, one hidden neuron, W₁ = [1, −1]ᵀ, b₁ = 0, W₂ = 2, b₂ = 0 and λ = 0.1. Then h = 0, p = 0.5, BCE = log(2), penalty = 0.3 and J ≈ 0.993147.</p><p>For b₂, the derivative is p − y = −0.5. A coordinate step with η = 0.2 makes b₂ = 0.1. The predicted change is −0.05. The actual objective becomes log(1 + exp(−0.1)) + 0.3 ≈ 0.944397: a change of −0.048751.</p><p>More derivations and exercises: <code>docs/optimization-mathematics.md</code> and <code>docs/optimization-exercises.md</code>.</p></details>
+  </div>
+</section>

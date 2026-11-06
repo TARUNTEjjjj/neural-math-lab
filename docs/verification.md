@@ -1,33 +1,34 @@
 # Release verification
 
-## Toolchain refresh — 5 November 2026
+## Toolchain refresh — 6 November 2026
 
-This refresh changes no package code; the version stays 0.3.0. It updates
-continuous integration and records checks against the newest Python, NumPy,
-and Matplotlib releases. Python 3.9 and 3.10 have reached end of life. The
-package still accepts both (`requires-python = ">=3.9"`), because
-`/usr/bin/python3` on macOS still runs Python 3.9 from Apple's Command Line
-Tools. Python 3.10 was not tested.
+This refresh changes no package code. It updates continuous integration and
+records checks against the newest Python, NumPy, and Matplotlib releases.
+Python 3.9 and 3.10 have reached end of life. The package still accepts both
+(`requires-python = ">=3.9"`), because `/usr/bin/python3` on macOS still runs
+Python 3.9 from Apple's Command Line Tools. Python 3.10 was not tested.
 
 The workflow now uses `actions/checkout@v7`, `actions/setup-python@v7`, and
 `actions/setup-node@v7`. The previous v4/v5 actions targeted Node.js 20, so
 every job reported a deprecation warning. The new matrix is described under
 Continuous checks. Each job records its resolved dependency versions.
 
-Checked locally on macOS Apple Silicon. The 19 browser-logic tests passed with
-Node.js 26.13.0, and the Python tests passed in each environment below:
+Checked locally on macOS Apple Silicon. After `npm ci --ignore-scripts`, the 40
+Node.js tests and the website build passed with Node.js 26.13.0, and the Python
+tests passed in each environment below:
 
 | Python | NumPy | Matplotlib | Python tests |
 | --- | --- | --- | --- |
-| 3.9.6 (Command Line Tools `/usr/bin/python3`) | 2.0.2 | 3.9.4 | 143 passed |
-| 3.11.18 | 1.26.0 (oldest accepted) | 3.7.0 (oldest accepted) | 143 passed |
-| 3.11.18 | 2.4.6 | 3.11.2 | 143 passed |
-| 3.12.16, 3.13.18, 3.14.10 | 2.5.4 | 3.11.2 | 143 passed each |
-| 3.15.2 | 2.5.4 | 3.11.2 | 143 passed, also with warnings as errors |
+| 3.9.6 (Command Line Tools `/usr/bin/python3`) | 2.0.2 | 3.9.4 | 147 passed |
+| 3.11.18 | 1.26.0 (oldest accepted) | 3.7.0 (oldest accepted) | 147 passed |
+| 3.11.18 | 2.4.6 | 3.11.2 | 147 passed |
+| 3.12.16, 3.13.18, 3.14.10 | 2.5.4 | 3.11.2 | 147 passed each |
+| 3.15.2 | 2.5.4 | 3.11.2 | 147 passed, also with warnings as errors |
 
 Each `run:` step of the new workflow was also replayed on this Mac for the
 Python 3.9, 3.12, and 3.15 jobs and the minimum-dependency job, in a fresh copy
-and a new virtual environment with the workflow's own `pip install` commands.
+and a new virtual environment with the workflow's own `pip install`, `npm ci`
+and build commands.
 Every step passed. The replay used Node.js 26.13.0 throughout and Python 3.9.6
 for the 3.9 job, so it did not exercise Ubuntu, Node.js 22 or 24, or the
 Python 3.9.25 that CI installs.
@@ -53,7 +54,7 @@ across Python versions and virtual environments until its font-cache version
 changes or `MPLCONFIGDIR` points to a new directory. The slow step does not run
 on Linux or Windows. The two CLI test classes each set a private
 `MPLCONFIGDIR`, so with Matplotlib 3.11.2 their two cache builds took about 19
-of the suite's 22 seconds.
+of the suite's 26 seconds.
 
 A wheel built with Python 3.15 contained every module and report asset, and
 its installed `neural-math-lab` command produced a complete experiment outside
@@ -70,6 +71,76 @@ over HTTP and from disk, and logged no console messages. Running the moons and
 circles reports' own inference code there reproduced all 240 saved Python test
 predictions within 1e-12 (largest difference 3.3e-16), for both the committed
 reports and reports regenerated on Python 3.15.
+
+## Cloudflare Pages website — 5 November 2026
+
+The public learning site is served at <https://neural-math-lab.pages.dev/>.
+The GitHub repository remains private. Publication uses an allowlisted `dist/`
+build, not the source checkout. It includes a learning home, three reports,
+eight linked guides, local equation fonts and a custom 404 page. KaTeX renders
+equations and accessible MathML during the build; it does not run in visitors'
+browsers. The original report scripts, synthetic data and inline-script CSP
+hashes are preserved exactly.
+
+All **40 Node.js tests** passed, including six website build regressions. These
+check the public file allowlist, every local link and fragment, math rendering,
+bad-equation failures, report/data preservation, and output-directory safety.
+The link crawl caught two incorrect home-page anchors, which were corrected.
+The dependency audit reported no known vulnerabilities at verification time.
+The unchanged Python mathematics suite is also run by the updated CI workflow.
+
+Twenty live HTTP checks passed: the home, all three labs, all eight guides,
+stylesheet/font assets, and five missing/private paths. Successful responses
+matched the local build byte for byte and included the configured security
+headers. Source probes for Python, Git configuration, package metadata and
+separate experiment JSON returned the actual 404 page.
+
+Chrome loaded the production domain and successfully applied and undid a
+gradient step (moons objective 0.889712 → 0.8895071 → 0.889712). Live browser
+checks also exercised baseline/replay switching, the raw-point inspector,
+threshold restoration, a full-gradient update, invalid-input recovery,
+reset, and the circles sandbox. The selected moons model returned 0.538760
+at raw coordinates (0.5, 0.2). Mobile checks at 320 and 390 pixels found no
+page-wide overflow in the tested home, guide and lab views, including the
+expanded slice table. The optimization guide rendered 75 equations without
+math errors. No application console warnings or errors occurred in the
+tested live interactions. These are functional checks, not a concurrent-user
+load test.
+
+## Gradient lab release (0.4) — 5 November 2026
+
+The complete local suite passed **147 Python tests** and **34 Node.js tests**.
+New checks compare every browser gradient with NumPy, central finite differences,
+and a hand-computed single-neuron example. They also verify coordinate and full
+gradient-descent updates, loss slices and tangents, stable extreme logits,
+unpenalized biases, duplicated-batch invariance, and rejection of invalid or
+overflowing arithmetic. These finite checks do not prove correctness for every
+possible floating-point input.
+
+UI regression tests execute the actual event handlers with a small DOM adapter.
+They cover apply/undo/reset, the 50-step limit, invalid-input recovery, changes
+to the starting model/batch/L2 coefficient, and recalculation at click time.
+Adversarial validation/test rows do not enter updates. All operations preserve
+the embedded recorded experiment, and resetting restores the chosen model.
+
+Browser checks on both included reports covered numerical derivative agreement,
+coordinate and all-parameter steps, keyboard activation, undo/reset, invalid
+controls, and a deliberately large learning rate that increased the objective.
+The held-out results stayed fixed. Desktop and 390- and 320-pixel mobile layouts
+had no page-wide overflow, including with the 41-row slice table expanded.
+No console warnings or errors occurred during these interactions. Browser
+checks used a local HTTP preview: direct `file://` navigation was blocked by
+the browser tool. Automated checks confirm embedded assets and matching CSP
+hashes without remote scripts or styles.
+
+The 0.4.0 wheel was built with the project virtual environment's current pip,
+installed into a temporary directory, and used outside the source checkout to
+generate a working report. All four new optimization assets were present.
+The committed moons/circles HTML reports were refreshed from their recorded
+experiments; their experiment data, saved models, and metrics are unchanged.
+Worked exercises were checked against NumPy. Local checks used macOS Apple
+Silicon, Python 3.9.6, NumPy 2.0.2, and Matplotlib 3.9.4. Consult the exact
+commit's Actions run for Linux/macOS CI results.
 
 ## Numerical review fixes — 5 November 2026
 
@@ -191,7 +262,7 @@ During visual-report testing, this Mac's NumPy/Apple Accelerate combination emit
 
 ## Continuous checks
 
-`.github/workflows/tests.yml` runs both test suites plus XOR training, gradient checking, advanced experiments, pipeline explanation, and an installed-package smoke check on Ubuntu 24.04 with Python 3.9 and Node.js 22, current Ubuntu with Python 3.12 and Node.js 24, and both current Ubuntu and macOS with Python 3.15 and Node.js 26. A separate Ubuntu 24.04 job runs the Python tests on Python 3.11 with NumPy 1.26.0 and Matplotlib 3.7.0, the oldest NumPy and Matplotlib releases that `pyproject.toml` accepts. The Python 3.9 job is pinned to Ubuntu 24.04 because GitHub's Python distribution manifest does not provide Python 3.9 for Ubuntu 26.04. CI tests Python 3.9 only on Ubuntu; the macOS Command Line Tools Python 3.9.6 is covered by the local checks above. Consult the workflow run for the exact commit's status; this document records the local checks above rather than assuming remote jobs passed.
+`.github/workflows/tests.yml` runs both test suites plus the website build, XOR training, gradient checking, advanced experiments, pipeline explanation, and an installed-package smoke check on Ubuntu 24.04 with Python 3.9 and Node.js 22, current Ubuntu with Python 3.12 and Node.js 24, and both current Ubuntu and macOS with Python 3.15 and Node.js 26. A separate Ubuntu 24.04 job runs the Python tests, with Node.js 22 for their browser-parity check, on Python 3.11 with NumPy 1.26.0 and Matplotlib 3.7.0: the oldest NumPy and Matplotlib releases that `pyproject.toml` accepts. The Python 3.9 job is pinned to Ubuntu 24.04 because GitHub's Python distribution manifest does not provide Python 3.9 for Ubuntu 26.04. CI tests Python 3.9 only on Ubuntu; the macOS Command Line Tools Python 3.9.6 is covered by the local checks above. Consult the workflow run for the exact commit's status; this document records the local checks above rather than assuming remote jobs passed.
 
 The lab does not require network access after dependencies are installed, does not collect telemetry, and does not create a public service. Advanced reports embed the learning figure, interactive plot code, and recorded experiment data; separate SVG exports are also provided. There are no external scripts or remote assets.
 
