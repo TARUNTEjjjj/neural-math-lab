@@ -1,5 +1,30 @@
 # Release verification
 
+## Numerical precision review — 7 November 2026
+
+The Python network and logistic baseline previously subtracted a large logit
+from its softplus value. For a correctly classified positive logit of 40, this
+rounded the representable loss of approximately `4.248e-18` to zero. Both the
+Python and browser derivatives also lost that small gradient when subtracting
+1 from a sigmoid rounded to 1. Binary-label equivalents now retain those tails:
+`softplus(-z)` and `-sigmoid(-z)` for positive targets. The logistic baseline
+also divides losses before summing, avoiding overflow of a finite mean.
+
+New regressions failed before the correction and pass afterward. They check
+both signs, every parameter derivative through a hidden neuron, independent
+finite differences in the browser, and the mean of four `1e308` losses under
+strict NumPy floating-point settings. The complete local suite passed **150
+Python tests** and **65 JavaScript tests**, followed by the allowlisted site
+build and equation/link/CSP checks. The full npm lockfile audit reported zero
+known vulnerabilities at the time of review.
+
+The moons and circles example reports carry the corrected sandbox script and
+updated CSP hashes. Their saved model weights, training rows and experiment
+results were not regenerated. The guides explain why equivalent formulas can
+behave differently in finite precision. This review does not repeat the earlier
+distributed capacity experiment or imply that all small values survive eventual
+floating-point underflow.
+
 ## Performance and distributed capacity — 7 November 2026
 
 The optimized site is live at <https://neural-math-lab.pages.dev/>. GitHub

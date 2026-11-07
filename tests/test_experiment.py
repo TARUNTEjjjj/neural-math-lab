@@ -14,6 +14,7 @@ from neural_math_lab.experiment import (
     classification_metrics,
     objective_and_gradients,
     run_experiment,
+    _Logistic,
 )
 
 
@@ -83,6 +84,25 @@ class OptimizerTests(unittest.TestCase):
 
 
 class RegularizationTests(unittest.TestCase):
+    def test_baseline_retains_small_loss_and_gradient_at_correct_saturation(self):
+        baseline = _Logistic()
+        X, y = np.array([[1., -2.]]), np.array([[1.]])
+        baseline.parameters["b"][:] = 40
+        tail = math.exp(-40)
+        residual = -tail / (1 + tail)
+        with np.errstate(all="raise"):
+            np.testing.assert_allclose(baseline.loss(X, y), math.log1p(tail), rtol=1e-14, atol=0)
+            gradients = baseline.gradients(X, y)
+        np.testing.assert_allclose(gradients["b"], [[residual]], rtol=1e-14, atol=0)
+        np.testing.assert_allclose(gradients["W"], [[residual], [-2 * residual]], rtol=1e-14, atol=0)
+
+    def test_baseline_averages_large_finite_losses_before_summing(self):
+        baseline = _Logistic()
+        baseline.parameters["b"][:] = 1e308
+        with np.errstate(all="raise"):
+            result = baseline.loss(np.zeros((4, 2)), np.zeros((4, 1)))
+        self.assertEqual(result, 1e308)
+
     def test_nested_list_parameters_match_float64_objective_without_mutation(self):
         network = Network(hidden=3, seed=11)
         X = np.array([[.2, -.4], [.7, .3], [-.1, .8]])

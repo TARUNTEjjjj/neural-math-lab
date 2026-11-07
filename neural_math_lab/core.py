@@ -88,6 +88,25 @@ def _matmul(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     return result
 
 
+def _binary_loss(logits: np.ndarray, targets: np.ndarray) -> float:
+    """Mean BCE for validated binary targets, retaining small positive losses."""
+    # For y=1 use softplus(-z); for y=0 use softplus(z). Subtracting y*z
+    # from softplus(z) loses representable tails when a positive logit is large.
+    with np.errstate(under="ignore"):
+        losses = np.logaddexp(0.0, np.where(targets == 1, -logits, logits))
+        result = float(np.sum(losses / len(targets)))
+    if not np.isfinite(result):
+        raise ValueError("loss calculation produced a non-finite value")
+    return result
+
+
+def _binary_residual(logits: np.ndarray, targets: np.ndarray) -> np.ndarray:
+    """Compute sigmoid(z)-y without subtracting a rounded probability from 1."""
+    positive_label = targets == 1
+    tail = _sigmoid(np.where(positive_label, -logits, logits))
+    return np.where(positive_label, -tail, tail)
+
+
 def xor_data() -> Tuple[np.ndarray, np.ndarray]:
     """Return fresh copies of the complete XOR truth table, in binary order."""
     return (
@@ -154,17 +173,7 @@ class Network:
         """Mean binary cross-entropy, computed from logits without log(0)."""
         cache = self.forward(X)
         y = _targets(y, cache["p"].shape[0])
-        z = cache["z2"]
-        # log(1 + exp(z)) - y*z equals BCE(sigmoid(z), y).
-        # logaddexp also evaluates vanishing exponentials internally. Rounding
-        # those to zero is legitimate for saturated logits under strict settings.
-        with np.errstate(under="ignore"):
-            losses = np.logaddexp(0.0, z) - y * z
-            # Divide first so several very large finite losses do not overflow.
-            result = float(np.sum(losses / len(y)))
-        if not np.isfinite(result):
-            raise ValueError("loss calculation produced a non-finite value")
-        return result
+        return _binary_loss(cache["z2"], y)
 
     def gradients(self, X, y) -> Dict[str, np.ndarray]:
         """Apply the chain rule to the mean loss; no automatic differentiation."""
@@ -173,9 +182,11 @@ class Network:
         cache = self.forward(X)
         weights = self._parameters()
         try:
-            with np.errstate(over="raise", invalid="raise"):
+            with np.errstate(over="raise", invalid="raise", under="ignore"):
                 # Sigmoid and cross-entropy simplify together to (p - y) / N.
-                dz2 = (cache["p"] - y) / len(X)
+                # Evaluate that equivalent residual from logits so a rounded
+                # p=1 does not erase a representable nonzero derivative.
+                dz2 = _binary_residual(cache["z2"], y) / len(X)
                 dW2 = _matmul(cache["h"].T, dz2)
                 db2 = np.sum(dz2, axis=0, keepdims=True)
                 dh = _matmul(dz2, weights["W2"].T)

@@ -142,18 +142,31 @@ $$
 \ell(y,z)=\log(1+e^z)-yz.
 $$
 
-The implementation evaluates this as:
+For binary labels, the implementation uses an equivalent form that also avoids
+subtracting two nearly equal large numbers:
 
 ```python
-np.mean(np.logaddexp(0.0, z2) - y * z2)
+signed_logit = np.where(y == 1, -z2, z2)
+losses = np.logaddexp(0.0, signed_logit)
+loss = np.sum(losses / len(y))
 ```
 
 [`np.logaddexp(a, b)`](https://numpy.org/doc/stable/reference/generated/numpy.logaddexp.html)
 computes the log of the sum of the exponentials. Using it avoids explicitly
-forming a potentially enormous `exp(z2)`. Sigmoid is also evaluated with
+forming a potentially enormous `exp(z2)`. A positive target uses
+$\log(1+e^{-z})$, while a negative target uses $\log(1+e^z)$.
+At $z=40,y=1$, the true loss is about $4.248\times10^{-18}$:
+computing `logaddexp(0, 40) - 40` would round it to zero. Dividing each loss
+before adding also avoids overflowing the mean of several large finite losses.
+Sigmoid is also evaluated with
 separate positive/negative branches to avoid overflowing an exponential.
 These choices preserve the mathematical model while improving numerical
 behavior; they do not make arbitrarily large intermediate matrix products safe.
+
+The combined loss derivative is still $\sigma(z)-y$. For a positive target,
+the code evaluates it as $-\sigma(-z)$, so a displayed probability rounded to
+1 does not erase a representable tiny derivative. Ordinary floating-point
+underflow can still round sufficiently small quantities to zero.
 
 ## 6. Backpropagation: calculate how each parameter affects the loss
 

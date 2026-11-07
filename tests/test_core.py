@@ -101,6 +101,27 @@ class NetworkMathTests(unittest.TestCase):
         net.step(net.gradients(self.X, self.y), learning_rate=0.01)
         self.assertLess(net.loss(self.X, self.y), before)
 
+    def test_correct_saturated_logits_retain_representable_loss_and_gradient(self):
+        net = Network(hidden=1, seed=7)
+        net.parameters["W1"][:] = 0
+        net.parameters["b1"][:] = .5
+        net.parameters["W2"][:] = 1
+        X = np.array([[1., -2.]])
+        hidden = math.tanh(.5)
+        for logit, target in ((40., 1.), (100., 1.), (-40., 0.)):
+            net.parameters["b2"][:] = logit - hidden
+            y = np.array([[target]])
+            tail = math.exp(-abs(logit))
+            residual = (1 if target == 0 else -1) * tail / (1 + tail)
+            expected = {"b2": [[residual]], "W2": [[hidden * residual]],
+                        "b1": [[(1 - hidden ** 2) * residual]],
+                        "W1": [[(1 - hidden ** 2) * residual],
+                               [-2 * (1 - hidden ** 2) * residual]]}
+            with self.subTest(logit=logit), np.errstate(all="raise"):
+                np.testing.assert_allclose(net.loss(X, y), math.log1p(tail), rtol=1e-14, atol=0)
+                for name, actual in net.gradients(X, y).items():
+                    np.testing.assert_allclose(actual, expected[name], rtol=1e-14, atol=0)
+
     def test_gradient_checker_restores_every_parameter(self):
         net = Network(hidden=3, seed=11)
         before = {name: p.copy() for name, p in net.parameters.items()}

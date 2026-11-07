@@ -57,10 +57,13 @@
       const h = z1.map(Math.tanh);
       const z = h.reduce((sum, value, j) => sum + value * parameters.W2[j][0], parameters.b2[0][0]);
       if (!finite(z)) fail("Output arithmetic overflowed; use smaller weights.");
-      const e = Math.exp(-Math.abs(z)), p = z >= 0 ? 1 / (1 + e) : e / (1 + e);
+      const e = Math.exp(-Math.abs(z));
       // BCE from logits stays finite when sigmoid rounds to exactly zero or one.
       bce += (Math.max(z, 0) - y[i] * z + Math.log1p(e)) / n;
-      const dz = (p - y[i]) / n;
+      // Equivalent to (sigmoid(z)-y)/N, without subtracting a rounded 1.
+      const residual = y[i] === 1 ? -(z >= 0 ? e : 1) / (1 + e)
+        : (z >= 0 ? 1 : e) / (1 + e);
+      const dz = residual / n;
       gradients.b2[0][0] += dz;
       for (let j = 0; j < hidden; j++) {
         gradients.W2[j][0] += h[j] * dz;

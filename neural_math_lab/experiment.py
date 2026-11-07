@@ -8,7 +8,8 @@ import math
 
 import numpy as np
 
-from .core import Network, _inputs, _integer, _matmul, _matrix, _positive, _sigmoid, _targets
+from .core import (Network, _binary_loss, _binary_residual, _inputs, _integer,
+                   _matmul, _matrix, _positive, _sigmoid, _targets)
 from .datasets import _bounded_real, fit_standardizer, make_dataset, standardize, stratified_split
 from .diagnostics import _cost, evaluate_binary, select_threshold
 
@@ -149,13 +150,13 @@ class _Logistic:
     def loss(self, X, y):
         z = self._logits(X)
         y = _targets(y, len(z))
-        with np.errstate(under="ignore"):
-            return float(np.mean(np.logaddexp(0.0, z) - y * z))
+        return _binary_loss(z, y)
 
     def gradients(self, X, y):
         X = _inputs(X)
         y = _targets(y, len(X))
-        dz = (self.predict_proba(X) - y) / len(X)
+        with np.errstate(under="ignore"):
+            dz = _binary_residual(self._logits(X), y) / len(X)
         return {"W": _matmul(X.T, dz), "b": dz.sum(axis=0, keepdims=True)}
 
 
