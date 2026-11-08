@@ -88,6 +88,12 @@ $$
 D_2=\frac{p-y}{N}.
 $$
 
+That identity does not require subtracting rounded probabilities in code.
+For $y=1$, compute $-\sigma(-z)/N$; for $y=0$, compute $\sigma(z)/N$.
+For example, $z=40,y=1$ retains a derivative of about
+$-4.248\times10^{-18}/N$ even though the displayed $p$ rounds to 1.
+This avoids falsely reporting a zero gradient in the optimization sandbox.
+
 The remaining derivatives are
 
 $$

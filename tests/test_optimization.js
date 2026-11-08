@@ -58,6 +58,22 @@ test("SGD proposals match arithmetic for one coordinate or all parameters", () =
   assert.deepEqual(proposeStep(model, batch, 0).parameters, model);
 });
 
+test("correct saturated outputs retain tiny derivatives instead of a false stationary point", () => {
+  for (const z of [40, 100, -40]) {
+    const y = z > 0 ? 1 : 0, h = Math.tanh(.5);
+    const weights = { W1: [[0], [0]], b1: [[.5]], W2: [[1]], b2: [[z - h]] };
+    const result = objectiveAndGradients(weights, { X: [[1, -2]], y: [y], mean: [[0, 0]], scale: [[1, 1]] });
+    const tail = Math.exp(-Math.abs(z)), dz = (1 - 2 * y) * tail / (1 + tail);
+    const expected = { W1: [[(1 - h * h) * dz], [-2 * (1 - h * h) * dz]],
+      b1: [[(1 - h * h) * dz]], W2: [[h * dz]], b2: [[dz]] };
+    for (const c of parameterKeys(weights)) near(result.gradients[c.name][c.row][c.col] / expected[c.name][c.row][c.col], 1, 1e-14);
+    near(result.bce / Math.log1p(tail), 1, 1e-14);
+    assert.ok(result.gradientNorm > 0);
+    const check = gradientCheck(weights, { X: [[1, -2]], y: [y], mean: [[0, 0]], scale: [[1, 1]] }, { name: "b2", row: 0, col: 0 }, .0001);
+    near(check.analytic / check.numerical, 1, 1e-7);
+  }
+});
+
 test("large step can increase true loss despite negative first-order change", () => {
   const weights = { W1: [[0], [0]], b1: [[0]], W2: [[0]], b2: [[0]] };
   const data = { X: [[0, 0], [0, 0], [0, 0], [0, 0]], y: [1, 1, 1, 0], mean: [[0, 0]], scale: [[1, 1]] };

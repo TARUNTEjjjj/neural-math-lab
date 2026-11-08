@@ -1,6 +1,6 @@
 # Release verification
 
-## Toolchain refresh — 7 November 2026
+## Toolchain refresh — 8 November 2026
 
 This refresh changes no package code. It updates continuous integration and
 records checks against the newest Python, NumPy, and Matplotlib releases.
@@ -13,39 +13,45 @@ The workflow now uses `actions/checkout@v7`, `actions/setup-python@v7`, and
 every job reported a deprecation warning. The new matrix is described under
 Continuous checks. Each job records its resolved dependency versions.
 
-Checked locally on macOS Apple Silicon. After `npm ci --ignore-scripts`, the 64
+Checked locally on macOS Apple Silicon. After `npm ci --ignore-scripts`, the 65
 Node.js tests and the website build passed with Node.js 26.13.0, and the Python
 tests passed in each environment below:
 
 | Python | NumPy | Matplotlib | Python tests |
 | --- | --- | --- | --- |
-| 3.9.6 (Command Line Tools `/usr/bin/python3`) | 2.0.2 | 3.9.4 | 147 passed |
-| 3.11.18 | 1.26.0 (oldest accepted) | 3.7.0 (oldest accepted) | 147 passed |
-| 3.11.18 | 2.4.6 | 3.11.2 | 147 passed |
-| 3.12.16, 3.13.18, 3.14.10 | 2.5.4 | 3.11.2 | 147 passed each |
-| 3.15.2 | 2.5.4 | 3.11.2 | 147 passed, also with warnings as errors |
+| 3.9.6 (Command Line Tools `/usr/bin/python3`) | 2.0.2 | 3.9.4 | 150 passed |
+| 3.11.18 | 1.26.0 (oldest accepted) | 3.7.0 (oldest accepted) | 150 passed |
+| 3.11.18 | 2.4.6 | 3.11.2 | 150 passed |
+| 3.12.16, 3.13.18, 3.14.10 | 2.5.4 | 3.11.2 | 150 passed each |
+| 3.15.2 | 2.5.4 | 3.11.2 | 150 passed, also with warnings as errors |
 
 Each `run:` step of the new workflow was also replayed on this Mac for the
 Python 3.9, 3.12, and 3.15 jobs and the minimum-dependency job, in a fresh copy
 and a new virtual environment with the workflow's own `pip install`, `npm ci`
-and build commands.
-Every step passed. The replay used Node.js 26.13.0 throughout and Python 3.9.6
-for the 3.9 job, so it did not exercise Ubuntu, Node.js 22 or 24, or the
-Python 3.9.25 that CI installs.
+and build commands. Every step passed. The replay used Node.js 26.13.0
+throughout and Python 3.9.6 for the 3.9 job, so it did not exercise Ubuntu,
+Node.js 22 or 24, or the Python 3.9.25 that CI installs.
 
-On Python 3.15.2 with NumPy 2.5.4 and Matplotlib 3.11.2, the default moons,
-circles, and XOR runs reproduce the committed `metrics.json`,
-`diagnostics.json`, `pipeline.json`, and `model.json` values exactly, apart
-from the recorded environment versions. In `experiment.json` and
-`history.csv`, the only other value that changes is the recorded gradient
-norm: 162 of 878 moons epochs and 75 of 475 circles epochs differ by one unit
-in the last place. The gradients and NumPy's per-parameter sums are bitwise
-identical; since Python 3.12, the built-in `sum()` that adds those four sums
-uses compensated (Neumaier) summation. The gradient norm is a diagnostic: it
-does not affect updates, selection, or stopping. The committed examples are
-therefore unchanged and still record the environment that produced them.
+With the current code, the default moons, circles, and XOR runs give the same
+`metrics.json`, `diagnostics.json`, `pipeline.json`, and `model.json` values on
+Python 3.15.2 with NumPy 2.5.4 and Matplotlib 3.11.2 as on Python 3.9.6 with
+NumPy 2.0.2 and Matplotlib 3.9.4, apart from the recorded environment versions.
+In `experiment.json` and `history.csv`, the only other value that changes is
+the recorded gradient norm: 151 of 878 moons epochs and 64 of 475 circles
+epochs differ by one unit in the last place. The gradients and NumPy's
+per-parameter sums are bitwise identical; since Python 3.12, the built-in
+`sum()` that adds those four sums uses compensated (Neumaier) summation. The
+gradient norm is a diagnostic: it does not affect updates, selection, or
+stopping.
 
-Default moons training took 1.45–1.54 s on the new stack versus 2.07–2.22 s on
+The committed examples predate the numerical precision review below and were
+not regenerated. Rerunning them with the current code changes floating-point
+values by at most a relative 1.7e-11 (circles), 5.0e-13 (moons), and 9.5e-14
+(XOR). Every accuracy, confusion count, ROC AUC, average precision, and
+selected or stopped epoch stays the same, and the neural network's selected
+thresholds change only in their last digits.
+
+Default moons training took 1.54–1.59 s on the new stack versus 2.19–2.29 s on
 Python 3.9 with NumPy 2.0.2 (best of three runs, repeated five times). On this
 Mac, Matplotlib 3.9 and newer took about 10 seconds to build a fresh font
 cache, almost all of it in one `system_profiler SPFontsDataType` call; 3.7
@@ -53,8 +59,8 @@ took under one second. Matplotlib then reuses the cache from `~/.matplotlib`
 across Python versions and virtual environments until its font-cache version
 changes or `MPLCONFIGDIR` points to a new directory. The slow step does not run
 on Linux or Windows. The two CLI test classes each set a private
-`MPLCONFIGDIR`, so with Matplotlib 3.11.2 their two cache builds took about 19
-of the suite's 26 seconds.
+`MPLCONFIGDIR`, so with Matplotlib 3.11.2 their two cache builds took about 20
+of the suite's 27 seconds.
 
 A wheel built with Python 3.15 contained every module and report asset, and
 its installed `neural-math-lab` command produced a complete experiment outside
@@ -69,8 +75,33 @@ exponent notation, such as `--input 0.5 -2e-1`, with a usage message.
 In headless Chrome 156, each committed report loaded with one network request,
 over HTTP and from disk, and logged no console messages. Running the moons and
 circles reports' own inference code there reproduced all 240 saved Python test
-predictions within 1e-12 (largest difference 3.3e-16), for both the committed
+predictions within 1e-12 (largest difference 5.0e-16), for both the committed
 reports and reports regenerated on Python 3.15.
+
+## Numerical precision review — 7 November 2026
+
+The Python network and logistic baseline previously subtracted a large logit
+from its softplus value. For a correctly classified positive logit of 40, this
+rounded the representable loss of approximately `4.248e-18` to zero. Both the
+Python and browser derivatives also lost that small gradient when subtracting
+1 from a sigmoid rounded to 1. Binary-label equivalents now retain those tails:
+`softplus(-z)` and `-sigmoid(-z)` for positive targets. The logistic baseline
+also divides losses before summing, avoiding overflow of a finite mean.
+
+New regressions failed before the correction and pass afterward. They check
+both signs, every parameter derivative through a hidden neuron, independent
+finite differences in the browser, and the mean of four `1e308` losses under
+strict NumPy floating-point settings. The complete local suite passed **150
+Python tests** and **65 JavaScript tests**, followed by the allowlisted site
+build and equation/link/CSP checks. The full npm lockfile audit reported zero
+known vulnerabilities at the time of review.
+
+The moons and circles example reports carry the corrected sandbox script and
+updated CSP hashes. Their saved model weights, training rows and experiment
+results were not regenerated. The guides explain why equivalent formulas can
+behave differently in finite precision. This review does not repeat the earlier
+distributed capacity experiment or imply that all small values survive eventual
+floating-point underflow.
 
 ## Performance and distributed capacity — 7 November 2026
 
