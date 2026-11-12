@@ -1,5 +1,11 @@
 # Neural Math Lab
 
+Numerical derivatives retain representable sigmoid and tanh tails even when
+displayed activations round to zero, one, or minus one. Python training,
+input-sensitivity analysis, and the browser optimization sandbox use equivalent
+stable formulas. Saving a model also accepts the validated list-based parameter
+containers supported by the network, without changing those containers.
+
 Understand a neural network from its equations, then test whether it learns a pattern beyond its training examples. Neural Math Lab implements **forward propagation, backpropagation, SGD, and Adam directly in NumPy**. Its offline reports let you replay training checkpoints, compare a neural network with logistic regression, explore decision costs, and differentiate predictions with respect to raw inputs.
 
 This private learning project belongs to [TARUNTEjjjj](https://github.com/TARUNTEjjjj). It connects the mathematical focus of AxiomMath and Axiom SAT with practical Python and reproducible ML experiments.

@@ -88,6 +88,20 @@ def _matmul(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     return result
 
 
+def _tanh_derivative(z: np.ndarray) -> np.ndarray:
+    """sech(z)^2 without subtracting an activation rounded to +/-1."""
+    with np.errstate(under="ignore"):
+        tail = np.exp(-np.abs(z))
+        return (2 * tail / (1 + tail * tail)) ** 2
+
+
+def _sigmoid_derivative(z: np.ndarray) -> np.ndarray:
+    """Retain representable derivatives even when sigmoid(z) rounds to one."""
+    with np.errstate(under="ignore"):
+        tail = np.exp(-np.abs(z))
+        return tail / (1 + tail) ** 2
+
+
 def _binary_loss(logits: np.ndarray, targets: np.ndarray) -> float:
     """Mean BCE for validated binary targets, retaining small positive losses."""
     # For y=1 use softplus(-z); for y=0 use softplus(z). Subtracting y*z
@@ -190,7 +204,7 @@ class Network:
                 dW2 = _matmul(cache["h"].T, dz2)
                 db2 = np.sum(dz2, axis=0, keepdims=True)
                 dh = _matmul(dz2, weights["W2"].T)
-                dz1 = dh * (1.0 - cache["h"] ** 2)
+                dz1 = dh * _tanh_derivative(cache["z1"])
                 dW1 = _matmul(X.T, dz1)
                 db1 = np.sum(dz1, axis=0, keepdims=True)
         except FloatingPointError as error:

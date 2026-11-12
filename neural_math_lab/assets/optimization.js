@@ -67,7 +67,9 @@
       gradients.b2[0][0] += dz;
       for (let j = 0; j < hidden; j++) {
         gradients.W2[j][0] += h[j] * dz;
-        const dz1 = dz * parameters.W2[j][0] * (1 - h[j] * h[j]);
+        const hiddenTail = Math.exp(-Math.abs(z1[j]));
+        const hiddenDerivative = (2 * hiddenTail / (1 + hiddenTail * hiddenTail)) ** 2;
+        const dz1 = dz * parameters.W2[j][0] * hiddenDerivative;
         gradients.b1[0][j] += dz1;
         for (let k = 0; k < 2; k++) gradients.W1[k][j] += x[k] * dz1;
       }

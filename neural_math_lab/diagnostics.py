@@ -9,7 +9,8 @@ import math
 
 import numpy as np
 
-from .core import Network, _integer, _matmul, _matrix, _targets
+from .core import (Network, _integer, _matmul, _matrix, _targets,
+                   _sigmoid_derivative, _tanh_derivative)
 from .datasets import _bounded_real, standardize
 
 
@@ -182,9 +183,9 @@ def input_sensitivity(network, raw, mean, scale):
     values, weights = network.forward(X), network._parameters()
     try:
         with np.errstate(over="raise", invalid="raise", divide="raise", under="ignore"):
-            hidden_derivatives = (1 - values["h"] ** 2) * weights["W2"].T
+            hidden_derivatives = _tanh_derivative(values["z1"]) * weights["W2"].T
             logit_derivatives = _matmul(hidden_derivatives, weights["W1"].T) / scale
-            result = values["p"] * (1 - values["p"]) * logit_derivatives
+            result = _sigmoid_derivative(values["z2"]) * logit_derivatives
     except FloatingPointError as exc:
         raise ValueError("Input sensitivity overflowed; use smaller inputs or weights") from exc
     if not np.isfinite(result).all():

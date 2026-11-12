@@ -14,7 +14,7 @@ def model_document(network):
     return {
         "format": "neural-math-lab-v1",
         "hidden": network.hidden,
-        "parameters": {name: value.tolist() for name, value in network.parameters.items()},
+        "parameters": {name: value.tolist() for name, value in network._parameters().items()},
     }
 
 
