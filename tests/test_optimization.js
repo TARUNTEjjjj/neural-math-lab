@@ -27,6 +27,15 @@ test("all analytic derivatives agree with independently perturbed objectives", (
   }
 });
 
+test("saturated hidden neurons preserve representable training derivatives", () => {
+  const weights = {W1: [[0], [0]], b1: [[20]], W2: [[1]], b2: [[0]]};
+  const data = {X: [[1, 0]], y: [0], mean: [[0, 0]], scale: [[1, 1]], l2: 0};
+  const gradient = objectiveAndGradients(weights, data).gradients.W1[0][0];
+  const expected = (1 / (1 + Math.exp(-1))) / Math.cosh(20) ** 2;
+  assert.ok(gradient > 0);
+  assert.ok(Math.abs(gradient / expected - 1) < 1e-14);
+});
+
 test("mean gradients are invariant to duplicated training rows", () => {
   const original = objectiveAndGradients(model, batch);
   const doubled = objectiveAndGradients(model, { ...batch, X: batch.X.concat(batch.X), y: batch.y.concat(batch.y) });

@@ -269,6 +269,22 @@ class InputSensitivityTests(unittest.TestCase):
         # At zero, tanh'=1 and sigmoid'=1/4, so derivative [2,-3]*4/4/[2,3].
         np.testing.assert_array_equal(result, [[1., -1.]])
 
+    def test_saturated_scores_retain_small_input_derivatives(self):
+        network = Network(hidden=1)
+        network.parameters = {"W1": np.array([[1.], [-2.]]), "b1": np.array([[0.]]),
+                              "W2": np.array([[1.]]), "b2": np.array([[40.]])}
+        for bias in (40., -40.):
+            network.parameters["b2"][:] = bias
+            with np.errstate(all="raise"):
+                actual = input_sensitivity(network, [[0, 0]], [[0, 0]], [[1, 1]])
+            expected = np.exp(-abs(bias)) / (1 + np.exp(-abs(bias))) ** 2
+            np.testing.assert_allclose(actual, [[expected, -2 * expected]], rtol=1e-14, atol=0)
+        network.parameters["b1"][:] = 20
+        network.parameters["b2"][:] = 0
+        expected = (np.exp(-1) / (1 + np.exp(-1)) ** 2) / np.cosh(20) ** 2
+        np.testing.assert_allclose(input_sensitivity(network, [[0, 0]], [[0, 0]], [[1, 1]]),
+                                   [[expected, -2 * expected]], rtol=1e-14, atol=0)
+
     def test_saturated_model_is_finite_with_zero_local_derivative(self):
         network = Network(hidden=1)
         network.parameters["b2"][:] = 1000

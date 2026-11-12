@@ -42,6 +42,15 @@ class ModelStorageTests(unittest.TestCase):
         document["parameters"]["W1"][0][0] = 999
         np.testing.assert_array_equal(self.network.parameters["W1"], before)
 
+    def test_list_parameters_round_trip_without_mutating_the_learners_containers(self):
+        self.network.parameters = {name: value.tolist() for name, value in self.network.parameters.items()}
+        original = dict(self.network.parameters)
+        before = self.network.predict_proba([[0., 1.]])
+        save_model(self.network, self.path)
+        np.testing.assert_array_equal(load_model(self.path).predict_proba([[0., 1.]]), before)
+        for name, value in original.items():
+            self.assertIs(self.network.parameters[name], value)
+
     def test_invalid_save_preserves_previous_model(self):
         save_model(self.network, self.path)
         before = self.path.read_bytes()

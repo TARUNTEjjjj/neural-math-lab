@@ -3,25 +3,32 @@
   // This is inference only. Python performs all fitting and model selection.
   function infer(parameters, raw, mean, scale, linear = false) {
     const x = raw.map((v, i) => (v - mean[0][i]) / scale[0][i]);
-    let h = [], z;
+    let h = [], z1 = [], z;
     if (linear) {
       z = x[0] * parameters.W[0][0] + x[1] * parameters.W[1][0] + parameters.b[0][0];
     } else {
-      h = parameters.b1[0].map((b, j) => Math.tanh(x[0] * parameters.W1[0][j] + x[1] * parameters.W1[1][j] + b));
+      z1 = parameters.b1[0].map((b, j) => x[0] * parameters.W1[0][j] + x[1] * parameters.W1[1][j] + b);
+      h = z1.map(Math.tanh);
       z = parameters.b2[0][0] + h.reduce((sum, a, j) => sum + a * parameters.W2[j][0], 0);
     }
     const e = Math.exp(z < 0 ? z : -z);
     const p = z >= 0 ? 1 / (1 + e) : e / (1 + e);
-    return { x, h, z, p };
+    return { x, h, z1, z, p };
   }
   // Differentiate the saved model with respect to raw input coordinates.
   // The 1/scale factor is the standardizer's derivative, not a fitted weight.
   function inputSensitivity(parameters, raw, mean, scale, linear = false) {
     const result = infer(parameters, raw, mean, scale, linear);
+    const tail = Math.exp(-Math.abs(result.z));
+    const sigmoidDerivative = tail / (1 + tail) ** 2;
+    const hiddenDerivatives = result.z1.map(z => {
+      const e = Math.exp(-Math.abs(z));
+      return (2 * e / (1 + e * e)) ** 2;
+    });
     return raw.map((_, i) => {
       const dz = linear ? parameters.W[i][0] : result.h.reduce(
-        (sum, h, j) => sum + parameters.W1[i][j] * (1 - h * h) * parameters.W2[j][0], 0);
-      return result.p * (1 - result.p) * dz / scale[0][i];
+        (sum, h, j) => sum + parameters.W1[i][j] * hiddenDerivatives[j] * parameters.W2[j][0], 0);
+      return sigmoidDerivative * dz / scale[0][i];
     });
   }
   function thresholdMetrics(targets, probabilities, threshold, fpCost = 1, fnCost = 1) {

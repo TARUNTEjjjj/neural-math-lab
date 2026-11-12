@@ -95,6 +95,18 @@ class NetworkMathTests(unittest.TestCase):
                 self.assertTrue(np.isfinite(p).all())
                 self.assertTrue(all(np.isfinite(g).all() for g in gradients.values()))
 
+    def test_saturated_hidden_units_retain_representable_gradients(self):
+        net = Network(hidden=1)
+        net.parameters = {"W1": np.array([[0.], [0.]]), "b1": np.array([[20.]]),
+                          "W2": np.array([[1.]]), "b2": np.array([[0.]])}
+        for sign in (1, -1):
+            net.parameters["b1"][:] = sign * 20
+            with np.errstate(all="raise"):
+                actual = net.gradients([[1., 0.]], [[0.]])["W1"][0, 0]
+            expected = (1 / (1 + math.exp(-sign))) / math.cosh(20) ** 2
+            self.assertGreater(actual, 0)
+            self.assertAlmostEqual(actual / expected, 1, places=14)
+
     def test_small_gradient_step_reduces_loss(self):
         net = Network(hidden=3, seed=11)
         before = net.loss(self.X, self.y)

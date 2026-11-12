@@ -6,6 +6,20 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { infer, inputSensitivity, thresholdMetrics, sensitivityProbe, createBoundaryGridCache } = require("../neural_math_lab/assets/experiment.js");
 
+test("browser sensitivity preserves sigmoid and tanh tails after activations round", () => {
+  const model = { W1: [[1], [-2]], b1: [[0]], W2: [[1]], b2: [[40]] };
+  const gradient = inputSensitivity(model, [0, 0], [[0, 0]], [[1, 1]]);
+  const expected = Math.exp(-40) / (1 + Math.exp(-40)) ** 2;
+  assert.ok(Math.abs(gradient[0] / expected - 1) < 1e-14);
+  assert.equal(gradient[1], -2 * gradient[0]);
+  model.b1 = [[20]]; model.b2 = [[0]];
+  const hidden = inputSensitivity(model, [0, 0], [[0, 0]], [[1, 1]])[0];
+  const expectedHidden = (Math.exp(-1) / (1 + Math.exp(-1)) ** 2) / Math.cosh(20) ** 2;
+  assert.ok(Math.abs(hidden / expectedHidden - 1) < 1e-14);
+  const linear = inputSensitivity({W: [[1], [-2]], b: [[40]]}, [0, 0], [[0, 0]], [[1, 1]], true);
+  assert.equal(linear[0], expected);
+});
+
 test("boundary grid cache reuses unchanged models and preserves every forward prediction", () => {
   const model = { W1: [[1, -1], [0.5, 2]], b1: [[0.1, -0.2]], W2: [[0.7], [-0.4]], b2: [[0.3]] };
   const bounds = [-2, 3, -1, 4], mean = [[1, -1]], scale = [[2, 4]];
