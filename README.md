@@ -8,7 +8,7 @@ containers supported by the network, without changing those containers.
 
 Understand a neural network from its equations, then test whether it learns a pattern beyond its training examples. Neural Math Lab implements **forward propagation, backpropagation, SGD, and Adam directly in NumPy**. Its offline reports let you replay training checkpoints, compare a neural network with logistic regression, explore decision costs, and differentiate predictions with respect to raw inputs.
 
-This private learning project belongs to [TARUNTEjjjj](https://github.com/TARUNTEjjjj). It connects the mathematical focus of AxiomMath and Axiom SAT with practical Python and reproducible ML experiments.
+This personal learning project belongs to [TARUNTEjjjj](https://github.com/TARUNTEjjjj). It connects the mathematical focus of AxiomMath and Axiom SAT with practical Python and reproducible ML experiments.
 
 ## Open a finished experiment first
 
@@ -196,7 +196,7 @@ The explanations and implementation are original. Further reading:
 - [NumPy: `logaddexp`](https://numpy.org/doc/stable/reference/generated/numpy.logaddexp.html), used for stable loss calculations.
 - [PyTorch: automatic differentiation](https://docs.pytorch.org/tutorials/beginner/basics/autogradqs_tutorial.html), for comparison after understanding the manual version.
 
-The repository remains private. The public Cloudflare Pages site serves only the learning pages, synthetic example reports, and their required display assets. Browser-delivered HTML, JavaScript, data and weights are necessarily readable by visitors; the Python package source, Git history and private repository are not published. The application has no telemetry or user accounts. Dependencies have their own licenses. XOR, moons, and circles are generated locally; no third-party dataset is redistributed.
+The repository is public. The public Cloudflare Pages site serves only the learning pages, synthetic example reports, and their required display assets. Browser-delivered HTML, JavaScript, data and weights are necessarily readable by visitors; the Python package source and Git history are available in the public GitHub repository. The application has no telemetry or user accounts. Dependencies have their own licenses. XOR, moons, and circles are generated locally; no third-party dataset is redistributed.
 
 ### Build and publish the learning website
 
