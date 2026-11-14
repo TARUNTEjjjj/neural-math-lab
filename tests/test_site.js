@@ -34,21 +34,30 @@ before(() => {
 after(() => { if (temporary) fs.rmSync(temporary, { recursive: true, force: true }); });
 
 test("public build contains only learning pages and explicitly required static assets", () => {
-  const expected = new Set(["index.html", "404.html", "_headers", "offline-resources-worker.js",
-    ...['index.html', 'explorer.css', 'explorer.mjs', 'catalog.json', 'catalog.mjs', 'storage.mjs', 'live.mjs', 'background.mjs', 'offline.mjs', 'offline-worker.js'].map(file => 'resources/' + file),
+  const expected = new Set(["index.html", "404.html", "_headers", "offline-resources-worker.js", "app-version.json",
+    ...['index.html', 'explorer.css', 'explorer.mjs', 'catalog.json', 'catalog.mjs', 'storage.mjs', 'live.mjs', 'background.mjs', 'offline.mjs', 'app-updates.mjs', 'offline-worker.js'].map(file => 'resources/' + file),
     ...["moons", "circles", "xor"].map((name) => `labs/${name}/index.html`),
     ...lessonSlugs.map((slug) => `learn/${slug}/index.html`)]);
   for (const file of expected) assert.ok(files.includes(file), "Missing public page/asset: " + file);
   for (const file of files) {
     assert.ok(expected.has(file) || /^assets\/(?:site|lab)\.[a-f0-9]{16}\.(?:css|js)$/.test(file) ||
       /^assets\/katex\/[a-f0-9]{16}\/(?:katex\.min\.css|LICENSE\.txt|fonts\/KaTeX_[\w-]+\.woff2)$/.test(file), "Unexpected published file: " + file);
-    if (file.endsWith(".json")) assert.equal(file, "resources/catalog.json");
+    if (file.endsWith(".json")) assert.ok(["resources/catalog.json", "app-version.json"].includes(file));
     assert.doesNotMatch(file, /(^|\/)(?:\.git|\.env|node_modules|neural_math_lab|tests)(\/|$)|\.(?:py|map|md)$/);
   }
   assert.equal(files.filter((name) => name.endsWith(".html")).length, 14);
   assert.ok(files.includes("resources/index.html"));
   assert.ok(files.includes("resources/catalog.json"));
-  assert.equal(read("offline-resources-worker.js"), fs.readFileSync(path.join(root, "offline-resources-worker.js"), "utf8"), "The root navigation fallback must be staged into custom build outputs too.");
+  const release=JSON.parse(read("app-version.json"));
+  assert.equal(release.project,"neural-math-lab");
+  assert.match(release.version,/^[a-f0-9]{64}$/);
+  for(const file of files.filter(file=>file.endsWith('.html'))) assert.ok(read(file).includes(`name="app-version" content="${release.version}"`),file+' must carry the actual running release');
+  for(const worker of ['offline-resources-worker.js','resources/offline-worker.js']) {
+    assert.ok(read(worker).includes(`const APP_VERSION = "${release.version}"`));
+    assert.doesNotMatch(read(worker),/APP_UPDATE_PROTOCOL|APP_VERSION \*\//);
+  }
+  assert.deepEqual(read('resources/catalog.json'),fs.readFileSync(path.join(root,'resources/catalog.json'),'utf8'),'Code updates preserve bundled collection bytes');
+  assert.match(read('_headers'),/\/app-version\.json\n  Cache-Control: no-store/);
   assert.match(read("_headers"), /\/offline-resources-worker\.js\n  Cache-Control: no-cache/);
 });
 

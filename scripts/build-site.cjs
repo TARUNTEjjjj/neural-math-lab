@@ -72,6 +72,11 @@ function hostedReport(name, original, publishAsset) {
   const nav = `<nav class="hosted-nav" aria-label="Learning website"><a href="/">← Learning home</a><a href="/labs/moons/">Moons</a><a href="/labs/circles/">Circles</a><a href="/labs/xor/">XOR</a><a href="/learn/optimization-mathematics/">Maths guides</a></nav>`;
   const style = '.hosted-nav{display:flex;flex-wrap:wrap;gap:12px 24px;padding:16px max(16px,calc((100% - 1280px)/2));background:#193e3b;color:#fff;font:600 13px system-ui}.hosted-nav a{color:#fff;text-decoration:none}.hosted-nav a:hover{text-decoration:underline}.hosted-nav a:focus-visible{outline:2px solid #fff;outline-offset:4px}';
   let html = original.replace("</style>", style + "</style>");
+  // The standalone XOR report omits optional head/body tags. Make those
+  // boundaries explicit in its hosted form before adding release metadata.
+  if (publishAsset && name === "xor" && !/<head(?:\s|>)/i.test(html)) {
+    html = html.replace(/(<html\b[^>]*>)/i, '$1<head>').replace('<main>', '</head><body><main>').replace('</html>', '</body></html>');
+  }
   html = name === "xor" ? html.replace("<main>", nav + "<main>") : html.replace("<body>", "<body>" + nav);
   html = html.replace('href="#" class="brand"', 'href="/" class="brand"');
   for (const [slug, title] of Object.entries(LESSONS)) {
@@ -119,11 +124,6 @@ function buildSite(output = path.join(ROOT, "dist")) {
   }
   const siteStyle = publishAsset("site", "css", fs.readFileSync(path.join(ROOT, "site/site.css")));
   function withSharedStyle(html) { return html.replaceAll('href="/site.css"', `href="${siteStyle}"`); }
-  // The shared staging helper renders the scoped worker's integrity manifest.
-  // Keep buildSite synchronous for the CLI/tests, including custom temporary outputs.
-  const stageModule = pathToFileURL(path.join(ROOT, 'scripts/stage-resource-explorer.mjs')).href;
-  const stage = `import {stageResourceExplorer,stageRootOfflineWorker} from ${JSON.stringify(stageModule)}; await stageResourceExplorer(process.argv[1], process.argv[2]); await stageRootOfflineWorker(process.argv[1], process.argv[3]);`;
-  execFileSync(process.execPath, ['--input-type=module', '--eval', stage, ROOT, path.join(destination, 'resources'), destination], {stdio: 'pipe'});
   const home = fs.readFileSync(path.join(ROOT, "site/index.html"), "utf8");
   write("index.html", withSharedStyle(home.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${CSP}">`)));
   for (const name of ["moons", "circles", "xor"]) {
@@ -151,7 +151,30 @@ function buildSite(output = path.join(ROOT, "dist")) {
     write(`learn/${slug}/index.html`, html);
   }
   write("404.html", withSharedStyle(page("Page not found", '<main id="main" class="site-main"><p class="eyebrow">404 / FIND YOUR WAY BACK</p><h1>This page is not in the lab.</h1><p>Choose an experiment or a maths guide from the learning home.</p><a class="button" href="/">Back to Neural Math Lab →</a></main>')));
-  write("_headers", "/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'; form-action 'none'\n\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n/offline-resources-worker.js\n  Cache-Control: no-cache\n");
+  write("_headers", "/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'; form-action 'none'\n\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n/offline-resources-worker.js\n  Cache-Control: no-cache\n/app-version.json\n  Cache-Control: no-store\n/resources/offline-worker.js\n  Cache-Control: no-cache\n");
+  // Stamp every app page and the verified resource shell from one source identity.
+  const stageModule = pathToFileURL(path.join(ROOT, 'scripts/stage-resource-explorer.mjs')).href;
+  const releaseModule = pathToFileURL(path.join(ROOT, 'scripts/app-release.mjs')).href;
+  const stage = `import {readFile,writeFile,readdir} from 'node:fs/promises';
+    import {resolve} from 'node:path';
+    import {readAppRelease,stampAppVersion,writeAppVersion} from ${JSON.stringify(releaseModule)};
+    import {stageResourceExplorer,stageRootOfflineWorker} from ${JSON.stringify(stageModule)};
+    const root=process.argv[1], output=process.argv[2];
+    const release=await readAppRelease(root,{project:'neural-math-lab',sourcePaths:[
+      'site','resources','neural_math_lab/assets','docs','examples/moons/report.html',
+      'examples/circles/report.html','examples/xor/report.html','offline-resources-worker.js',
+      'scripts/build-site.cjs','scripts/app-release.mjs','scripts/app-update-protocol.mjs',
+      'scripts/stage-resource-explorer.mjs','package.json','package-lock.json']});
+    async function stamp(dir){for(const entry of await readdir(dir,{withFileTypes:true})){
+      const file=resolve(dir,entry.name);
+      if(entry.isDirectory()) await stamp(file);
+      else if(entry.name.endsWith('.html')) await writeFile(file,stampAppVersion(await readFile(file,'utf8'),release));
+    }}
+    await stamp(output);
+    await stageResourceExplorer(root,resolve(output,'resources'),{release});
+    await stageRootOfflineWorker(root,output,{release});
+    await writeAppVersion(output,release,{workers:[{scope:'/',script:'/offline-resources-worker.js'},{scope:'/resources/',script:'/resources/offline-worker.js'}]});`;
+  execFileSync(process.execPath, ['--input-type=module','--eval',stage,ROOT,destination], {stdio:'pipe'});
   return destination;
 }
 
