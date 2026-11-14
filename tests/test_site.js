@@ -35,7 +35,7 @@ after(() => { if (temporary) fs.rmSync(temporary, { recursive: true, force: true
 
 test("public build contains only learning pages and explicitly required static assets", () => {
   const expected = new Set(["index.html", "404.html", "_headers",
-    "resources/index.html", "resources/explorer.css", "resources/explorer.mjs", "resources/catalog.json",
+    ...['index.html', 'explorer.css', 'explorer.mjs', 'catalog.json', 'catalog.mjs', 'storage.mjs', 'live.mjs', 'background.mjs', 'offline.mjs', 'offline-worker.js'].map(file => 'resources/' + file),
     ...["moons", "circles", "xor"].map((name) => `labs/${name}/index.html`),
     ...lessonSlugs.map((slug) => `learn/${slug}/index.html`)]);
   for (const file of expected) assert.ok(files.includes(file), "Missing public page/asset: " + file);
@@ -100,7 +100,9 @@ test("hosted reports preserve exact data and runtime bytes with deferred integri
       assert.ok(original.includes(`script-src 'sha256-${digest(originalRuntime, "base64")}'`), "Offline CSP remains valid.");
       assert.match(hosted, /href="\/learn\/optimization-mathematics\/"/);
       assert.match(hosted, /href="\/learn\/optimization-exercises\/"/);
-    } else assert.equal(scripts(hosted).length, 0, "XOR remains a script-free report.");
+    } else assert.deepEqual(scripts(hosted), ['<script type="module" src="/resources/background.mjs"></script>'], "XOR calculations remain pre-rendered; only resource saving runs in the background.");
+    assert.match(hosted, /connect-src 'self' https:\/\/raw.githubusercontent.com/);
+    assert.match(hosted, /worker-src 'self'/);
   }
 });
 
@@ -111,7 +113,7 @@ test("lesson equations are pre-rendered with accessible MathML and local font as
     assert.match(html, /<math\b/);
     assert.match(html, /class="katex-html"/);
     assert.match(html, /<link rel="stylesheet" href="\/assets\/katex\/[a-f0-9]{16}\/katex.min.css">/);
-    assert.equal(scripts(html).length, 0, "Lesson rendering must not need browser JavaScript.");
+    assert.deepEqual(scripts(html), ['<script type="module" src="/resources/background.mjs"></script>'], "Lesson equations stay pre-rendered; only resource saving runs in the background.");
   }
   const mathCss = files.find((name) => /^assets\/katex\/[a-f0-9]{16}\/katex\.min\.css$/.test(name));
   assert.ok(mathCss, "Locally served maths stylesheet is required.");

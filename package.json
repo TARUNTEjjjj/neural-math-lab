@@ -6,7 +6,7 @@
     "build": "node scripts/build-site.cjs",
     "test": "node --test tests/test_*.js",
     "test:capacity": "node scripts/load-test.cjs",
-    "test:resources:ui": "node --test scripts/resource-explorer.test.mjs",
+    "test:resources:ui": "node --test scripts/resource-*.test.mjs",
     "resources:refresh": "node scripts/resources/resource-server.mjs refresh --config resources/sources.json --output resources/catalog.json",
     "resources:serve": "node scripts/resources/resource-server.mjs serve --config resources/sources.json --snapshot resources/catalog.json",
     "test:resources": "node --test scripts/resources/resource-catalog.test.mjs && node scripts/resources/check-catalog.mjs"
