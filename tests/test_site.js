@@ -35,15 +35,19 @@ after(() => { if (temporary) fs.rmSync(temporary, { recursive: true, force: true
 
 test("public build contains only learning pages and explicitly required static assets", () => {
   const expected = new Set(["index.html", "404.html", "_headers",
+    "resources/index.html", "resources/explorer.css", "resources/explorer.mjs", "resources/catalog.json",
     ...["moons", "circles", "xor"].map((name) => `labs/${name}/index.html`),
     ...lessonSlugs.map((slug) => `learn/${slug}/index.html`)]);
   for (const file of expected) assert.ok(files.includes(file), "Missing public page/asset: " + file);
   for (const file of files) {
     assert.ok(expected.has(file) || /^assets\/(?:site|lab)\.[a-f0-9]{16}\.(?:css|js)$/.test(file) ||
       /^assets\/katex\/[a-f0-9]{16}\/(?:katex\.min\.css|LICENSE\.txt|fonts\/KaTeX_[\w-]+\.woff2)$/.test(file), "Unexpected published file: " + file);
-    assert.doesNotMatch(file, /(^|\/)(?:\.git|\.env|node_modules|neural_math_lab|tests)(\/|$)|\.(?:py|json|map|md)$/);
+    if (file.endsWith(".json")) assert.equal(file, "resources/catalog.json");
+    assert.doesNotMatch(file, /(^|\/)(?:\.git|\.env|node_modules|neural_math_lab|tests)(\/|$)|\.(?:py|map|md)$/);
   }
-  assert.equal(files.filter((name) => name.endsWith(".html")).length, 13);
+  assert.equal(files.filter((name) => name.endsWith(".html")).length, 14);
+  assert.ok(files.includes("resources/index.html"));
+  assert.ok(files.includes("resources/catalog.json"));
 });
 
 test("every generated local page, asset and fragment link resolves", () => {

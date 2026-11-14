@@ -20,8 +20,12 @@ def parser():
     fit.add_argument("--hidden", type=int, default=4)
     fit.add_argument("--seed", type=int, default=7)
     fit.add_argument("--output", type=Path, default=Path("runs/xor"), help="New output directory; existing directories are preserved.")
-    experiment = commands.add_parser("experiment", help="Train moons or circles with validation, a held-out test set, and interactive replay.")
-    experiment.add_argument("--dataset", choices=("moons", "circles"), default="moons")
+    fetch = commands.add_parser("fetch-dataset", help="Import the pinned Iris data after checksum verification.")
+    fetch.add_argument("--dataset", choices=("iris",), default="iris")
+    fetch.add_argument("--output", type=Path, default=Path("datasets/iris"))
+    experiment = commands.add_parser("experiment", help="Train moons, circles or imported Iris with validation, a held-out test set, and interactive replay.")
+    experiment.add_argument("--dataset", choices=("moons", "circles", "iris"), default="moons")
+    experiment.add_argument("--data-path", type=Path, help="Local verified Iris dataset directory; training never downloads.")
     experiment.add_argument("--samples", type=int, default=600)
     experiment.add_argument("--noise", type=float, default=0.15)
     experiment.add_argument("--hidden", type=int, default=16)
@@ -49,6 +53,13 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
+        if args.command == "fetch-dataset":
+            from .resource_data import download_iris
+            metadata = download_iris(args.output)
+            print("Imported 150 verified Iris rows into", args.output)
+            print("SHA-256:", metadata["sha256"])
+            print("Two features: sepal length and width (cm). Class 1: setosa; class 0: other species.")
+            return 0
         if args.command == "gradient-check":
             network = Network(hidden=args.hidden, seed=args.seed)
             X, y = xor_data()
@@ -109,7 +120,7 @@ def main(argv=None):
             print("{}: {} training / {} validation / {} held-out test examples".format(args.dataset.title(), len(result["data"]["train_idx"]), len(result["data"]["val_idx"]), len(result["data"]["test_idx"])))
             print("Selected epoch {} by validation loss; stopped at {} ({})".format(result["best_epoch"], result["stopped_epoch"], result["stop_reason"]))
             print("Held-out accuracy: neural {:.2%}; linear baseline {:.2%}".format(result["metrics"]["test"]["accuracy"], result["baseline"]["test"]["accuracy"]))
-            print("The test set is evaluated after model selection. These are results on one synthetic split.")
+            print("The test set is evaluated after model selection. These are results on one " + ("small Iris split, not a general species classifier." if args.dataset == "iris" else "synthetic split."))
             decision = result["diagnostics"]["network"]
             print("Validation-selected decision threshold: {:.17g} (FP cost {}; FN cost {})".format(decision["threshold_selection"]["threshold"], args.fp_cost, args.fn_cost))
             print("Frozen-threshold held-out mean cost: {:.6f}".format(decision["test"]["mean_cost"]))

@@ -223,14 +223,19 @@ def _fit(model, X_train, y_train, X_val, y_val, config, seed, snapshots=True):
 
 def run_experiment(dataset="moons", samples=600, noise=0.15, hidden=16, seed=7,
                    epochs=1200, learning_rate=0.01, optimizer="adam", batch_size=32,
-                   l2=0.001, patience=100, min_delta=1e-5, fp_cost=1.0, fn_cost=1.0):
+                   l2=0.001, patience=100, min_delta=1e-5, fp_cost=1.0, fn_cost=1.0,
+                   data_path=None):
     """Fit on training rows, select on validation rows, then evaluate test once.
 
     Different random streams separate data, split, initialization, and shuffles.
     The configuration is fully validated before constructing any experiment.
     """
-    if dataset not in ("moons", "circles"):
-        raise ValueError("dataset must be 'moons' or 'circles'")
+    if dataset not in ("moons", "circles", "iris"):
+        raise ValueError("dataset must be moons, circles or iris")
+    if dataset != "iris" and data_path is not None:
+        raise ValueError("data_path is only valid for the imported Iris dataset")
+    if dataset == "iris" and (samples != 600 or noise != 0.15):
+        raise ValueError("Iris uses all 150 measured rows; omit synthetic samples and noise options")
     if optimizer not in ("adam", "sgd"):
         raise ValueError("optimizer must be 'adam' or 'sgd'")
     config = {
@@ -245,7 +250,12 @@ def run_experiment(dataset="moons", samples=600, noise=0.15, hidden=16, seed=7,
         "fp_cost": _cost(fp_cost, "fp_cost"), "fn_cost": _cost(fn_cost, "fn_cost"),
     }
     seed = config["seed"]
-    X, y = make_dataset(dataset, config["samples"], config["noise"], seed)
+    if dataset == "iris":
+        from .resource_data import load_iris
+        X, y, provenance = load_iris(data_path)
+        config.update({"samples": len(X), "noise": None, "source": provenance})
+    else:
+        X, y = make_dataset(dataset, config["samples"], config["noise"], seed)
     ids = stratified_split(y, seed + 1)
     mean, scale = fit_standardizer(X[ids["train_idx"]])
     # Transform only the splits needed for fitting. The held-out set is not even

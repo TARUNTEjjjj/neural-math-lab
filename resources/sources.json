@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "project": "neural-math-lab",
+  "title": "Neural Math Lab resources",
+  "minStars": 500,
+  "maxPerCategory": 12,
+  "categories": [
+    {
+      "id": "foundations",
+      "title": "Neural network foundations",
+      "queries": [
+        "topic:neural-network topic:from-scratch"
+      ],
+      "seeds": [
+        "karpathy/micrograd",
+        "d2l-ai/d2l-en"
+      ]
+    },
+    {
+      "id": "datasets",
+      "title": "Datasets and scientific tools",
+      "queries": [
+        "topic:machine-learning topic:datasets language:Python"
+      ],
+      "seeds": [
+        "scikit-learn/scikit-learn",
+        "numpy/numpy"
+      ]
+    }
+  ]
+}

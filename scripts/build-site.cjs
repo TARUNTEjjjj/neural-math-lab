@@ -21,7 +21,7 @@ const LESSONS = {
 const CSP = "default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'";
 const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
 const links = () => Object.entries(LESSONS).map(([slug, title]) => `<li><a href="/learn/${slug}/">${title}</a></li>`).join("");
-const header = `<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="site-brand" href="/">∇ Neural Math Lab</a><nav class="site-nav" aria-label="Main navigation"><a href="/#experiments">Experiments</a><a href="/#learning-path">Maths guides</a><a href="/labs/moons/#gradient-lab">Gradient lab</a></nav></header>`;
+const header = `<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="site-brand" href="/">∇ Neural Math Lab</a><nav class="site-nav" aria-label="Main navigation"><a href="/#experiments">Experiments</a><a href="/#learning-path">Maths guides</a><a href="/labs/moons/#gradient-lab">Gradient lab</a><a href="/resources/">Resources</a></nav></header>`;
 const footer = `<footer class="site-footer"><span>Neural Math Lab · Learn through experiments.</span><span>Calculations stay in your browser · No sign-in required</span></footer>`;
 
 function page(title, content, extraHead = "") {
@@ -107,6 +107,9 @@ function buildSite(output = path.join(ROOT, "dist")) {
   }
   const siteStyle = publishAsset("site", "css", fs.readFileSync(path.join(ROOT, "site/site.css")));
   function withSharedStyle(html) { return html.replaceAll('href="/site.css"', `href="${siteStyle}"`); }
+  for (const file of ['index.html', 'explorer.css', 'explorer.mjs', 'catalog.json']) {
+    write('resources/' + file, fs.readFileSync(path.join(ROOT, 'resources', file)));
+  }
   const home = fs.readFileSync(path.join(ROOT, "site/index.html"), "utf8");
   write("index.html", withSharedStyle(home.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${CSP}">`)));
   for (const name of ["moons", "circles", "xor"]) {

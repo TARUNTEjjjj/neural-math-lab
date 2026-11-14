@@ -184,12 +184,16 @@ def write_experiment_report(result, output):
                        for name in ("experiment.js", "optimization.js", "optimization-ui.js"))
     script_hash = base64.b64encode(hashlib.sha256(script.encode("utf-8")).digest()).decode("ascii")
     svg = (output / "learning.svg").read_text(encoding="utf-8")
-    command = "python -m neural_math_lab experiment " + " ".join("--{} {}".format(key.replace("_", "-"), config[key]) for key in ("dataset", "samples", "noise", "hidden", "seed", "epochs", "learning_rate", "optimizer", "batch_size", "l2", "patience", "min_delta", "fp_cost", "fn_cost")) + " --output runs/new-experiment"
+    command_keys = ("dataset", "samples", "noise", "hidden", "seed", "epochs", "learning_rate", "optimizer", "batch_size", "l2", "patience", "min_delta", "fp_cost", "fn_cost")
+    if config["dataset"] == "iris":
+        command_keys = tuple(key for key in command_keys if key not in ("samples", "noise"))
+    command = "python -m neural_math_lab experiment " + " ".join("--{} {}".format(key.replace("_", "-"), config[key]) for key in command_keys) + (" --data-path datasets/iris" if config["dataset"] == "iris" else "") + " --output runs/new-experiment"
     replacements = {
         "CSS": "\n".join((assets / name).read_text(encoding="utf-8")
                          for name in ("experiment.css", "optimization.css")),
         "OPTIMIZATION_LAB": (assets / "optimization.html").read_text(encoding="utf-8"),
         "SCRIPT": script, "SCRIPT_HASH": script_hash, "DATA": json_text(document).replace("<", "\\u003c"),
+        "DATA_SCOPE": ("Iris observations: x₁ = sepal length (cm), x₂ = sepal width (cm); class 1 = setosa, class 0 = versicolor or virginica. This is a small educational split." if config["dataset"] == "iris" else "These synthetic results describe this split and seed."),
         "DATASET": html.escape(config["dataset"].title()), "HIDDEN": str(config["hidden"]),
         "TAGS": "".join("<span>{}</span>".format(html.escape(str(tag))) for tag in (config["optimizer"].upper(), "Batch " + str(config["batch_size"]), "λ " + str(config["l2"]), "Seed " + str(config["seed"]))),
         "METRIC_CARDS": cards, "STOP_SUMMARY": "Stopped at epoch " + str(result["stopped_epoch"]),
@@ -197,6 +201,7 @@ def write_experiment_report(result, output):
         "STATIC_FIGURE": svg[svg.index("<svg"):], "COMPARISON_TABLE": comparison,
         "DIAGNOSTIC_SUMMARY": diagnostic_summary, "DIAGNOSTIC_TABLES": diagnostic_tables,
         "CONFUSION": confusion, "SPLIT_TABLE": split_table, "ERROR_TABLE": error_table,
+        "REPRO_NOTE": ("The command runs locally in Python. Replace datasets/iris with the directory you imported, or first run: python -m neural_math_lab fetch-dataset --output datasets/iris. Training reads local data only." if config["dataset"] == "iris" else "The command runs locally in Python."),
         "REPRO_COMMAND": html.escape(command), "CONFIG": html.escape(json.dumps(serializable({"config": config, "seeds": result["seeds"], "environment": environment}), indent=2)),
     }
     report = Template((assets / "experiment.html").read_text(encoding="utf-8")).substitute(replacements)
