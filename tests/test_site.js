@@ -34,7 +34,7 @@ before(() => {
 after(() => { if (temporary) fs.rmSync(temporary, { recursive: true, force: true }); });
 
 test("public build contains only learning pages and explicitly required static assets", () => {
-  const expected = new Set(["index.html", "404.html", "_headers",
+  const expected = new Set(["index.html", "404.html", "_headers", "offline-resources-worker.js",
     ...['index.html', 'explorer.css', 'explorer.mjs', 'catalog.json', 'catalog.mjs', 'storage.mjs', 'live.mjs', 'background.mjs', 'offline.mjs', 'offline-worker.js'].map(file => 'resources/' + file),
     ...["moons", "circles", "xor"].map((name) => `labs/${name}/index.html`),
     ...lessonSlugs.map((slug) => `learn/${slug}/index.html`)]);
@@ -48,6 +48,8 @@ test("public build contains only learning pages and explicitly required static a
   assert.equal(files.filter((name) => name.endsWith(".html")).length, 14);
   assert.ok(files.includes("resources/index.html"));
   assert.ok(files.includes("resources/catalog.json"));
+  assert.equal(read("offline-resources-worker.js"), fs.readFileSync(path.join(root, "offline-resources-worker.js"), "utf8"), "The root navigation fallback must be staged into custom build outputs too.");
+  assert.match(read("_headers"), /\/offline-resources-worker\.js\n  Cache-Control: no-cache/);
 });
 
 test("every generated local page, asset and fragment link resolves", () => {

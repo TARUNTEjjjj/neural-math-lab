@@ -122,8 +122,8 @@ function buildSite(output = path.join(ROOT, "dist")) {
   // The shared staging helper renders the scoped worker's integrity manifest.
   // Keep buildSite synchronous for the CLI/tests, including custom temporary outputs.
   const stageModule = pathToFileURL(path.join(ROOT, 'scripts/stage-resource-explorer.mjs')).href;
-  const stage = `import {stageResourceExplorer} from ${JSON.stringify(stageModule)}; await stageResourceExplorer(process.argv[1], process.argv[2]);`;
-  execFileSync(process.execPath, ['--input-type=module', '--eval', stage, ROOT, path.join(destination, 'resources')], {stdio: 'pipe'});
+  const stage = `import {stageResourceExplorer,stageRootOfflineWorker} from ${JSON.stringify(stageModule)}; await stageResourceExplorer(process.argv[1], process.argv[2]); await stageRootOfflineWorker(process.argv[1], process.argv[3]);`;
+  execFileSync(process.execPath, ['--input-type=module', '--eval', stage, ROOT, path.join(destination, 'resources'), destination], {stdio: 'pipe'});
   const home = fs.readFileSync(path.join(ROOT, "site/index.html"), "utf8");
   write("index.html", withSharedStyle(home.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${CSP}">`)));
   for (const name of ["moons", "circles", "xor"]) {
@@ -151,7 +151,7 @@ function buildSite(output = path.join(ROOT, "dist")) {
     write(`learn/${slug}/index.html`, html);
   }
   write("404.html", withSharedStyle(page("Page not found", '<main id="main" class="site-main"><p class="eyebrow">404 / FIND YOUR WAY BACK</p><h1>This page is not in the lab.</h1><p>Choose an experiment or a maths guide from the learning home.</p><a class="button" href="/">Back to Neural Math Lab →</a></main>')));
-  write("_headers", "/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'; form-action 'none'\n\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n");
+  write("_headers", "/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'none'; form-action 'none'\n\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n/offline-resources-worker.js\n  Cache-Control: no-cache\n");
   return destination;
 }
 
