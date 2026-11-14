@@ -4,6 +4,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const {execFileSync} = require("node:child_process");
+const {pathToFileURL} = require("node:url");
 const MarkdownIt = require("markdown-it");
 const katex = require("katex");
 const texmath = require("markdown-it-texmath");
@@ -18,13 +20,14 @@ const LESSONS = {
   "optimization-mathematics": "Gradients & optimization",
   "optimization-exercises": "Optimization · exercises"
 };
-const CSP = "default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'";
+const CSP = "default-src 'none'; script-src 'self'; worker-src 'self'; connect-src 'self' https://raw.githubusercontent.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'";
 const escape = (text) => String(text).replace(/[&<>"']/g, (c) => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[c]));
 const links = () => Object.entries(LESSONS).map(([slug, title]) => `<li><a href="/learn/${slug}/">${title}</a></li>`).join("");
 const header = `<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="site-brand" href="/">∇ Neural Math Lab</a><nav class="site-nav" aria-label="Main navigation"><a href="/#experiments">Experiments</a><a href="/#learning-path">Maths guides</a><a href="/labs/moons/#gradient-lab">Gradient lab</a><a href="/resources/">Resources</a></nav></header>`;
 const footer = `<footer class="site-footer"><span>Neural Math Lab · Learn through experiments.</span><span>Calculations stay in your browser · No sign-in required</span></footer>`;
 
 function page(title, content, extraHead = "") {
+  extraHead += '<script type="module" src="/resources/background.mjs"></script>';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${CSP}"><title>${escape(title)} · Neural Math Lab</title><link rel="stylesheet" href="/site.css">${extraHead}</head><body>${header}${content}${footer}</body></html>`;
 }
 
@@ -86,6 +89,15 @@ function hostedReport(name, original, publishAsset) {
     html = html.replace("style-src 'unsafe-inline'", "style-src 'self' 'unsafe-inline'")
       .replace(/script-src 'sha256-[^']+'/g, "script-src 'self'");
   }
+  // Only hosted labs load the public resource background client; exported reports stay self-contained.
+  if (publishAsset) {
+    const background = '<script type="module" src="/resources/background.mjs"></script>';
+    html = html.includes('</head>') ? html.replace('</head>', background + '</head>') : html.replace('<main>', background + '<main>');
+    html = html.replace(/(<meta http-equiv="Content-Security-Policy" content=")([^"]+)(")/, (_, start, policy, end) => {
+      const kept = policy.split(';').map(value => value.trim()).filter(value => value && !/^(?:script-src|worker-src|connect-src)\b/.test(value));
+      return start + [...kept, "script-src 'self'", "worker-src 'self'", "connect-src 'self' https://raw.githubusercontent.com"].join('; ') + end;
+    });
+  }
   return html;
 }
 
@@ -107,9 +119,11 @@ function buildSite(output = path.join(ROOT, "dist")) {
   }
   const siteStyle = publishAsset("site", "css", fs.readFileSync(path.join(ROOT, "site/site.css")));
   function withSharedStyle(html) { return html.replaceAll('href="/site.css"', `href="${siteStyle}"`); }
-  for (const file of ['index.html', 'explorer.css', 'explorer.mjs', 'catalog.json']) {
-    write('resources/' + file, fs.readFileSync(path.join(ROOT, 'resources', file)));
-  }
+  // The shared staging helper renders the scoped worker's integrity manifest.
+  // Keep buildSite synchronous for the CLI/tests, including custom temporary outputs.
+  const stageModule = pathToFileURL(path.join(ROOT, 'scripts/stage-resource-explorer.mjs')).href;
+  const stage = `import {stageResourceExplorer} from ${JSON.stringify(stageModule)}; await stageResourceExplorer(process.argv[1], process.argv[2]);`;
+  execFileSync(process.execPath, ['--input-type=module', '--eval', stage, ROOT, path.join(destination, 'resources')], {stdio: 'pipe'});
   const home = fs.readFileSync(path.join(ROOT, "site/index.html"), "utf8");
   write("index.html", withSharedStyle(home.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${CSP}">`)));
   for (const name of ["moons", "circles", "xor"]) {
