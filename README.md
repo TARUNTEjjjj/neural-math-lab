@@ -24,9 +24,16 @@ Replay and diagnostics inspect a **recorded experiment**. The new **Gradient lab
 
 ![Training and validation loss in the included moons experiment](examples/moons/learning.svg)
 
+## Explore a real dataset
+
+Use the [verified Iris import](docs/imported-data.md) to train on actual plant
+measurements from a pinned scikit-learn source. Importing is explicit; training
+and reports remain offline. The original moons, circles and XOR workflows stay
+available.
+
 ## Run your own experiment
 
-You need Python 3.9 or newer. On macOS, `/usr/bin/python3` (Python 3.9 from Apple's Command Line Tools) still works, but Python 3.9 and 3.10 no longer receive security fixes. Current NumPy releases need Python 3.12 or newer, so Python 3.12 or newer is recommended. Dependencies are NumPy and Matplotlib. Installation needs internet access, but training then runs locally on a CPU. No GPU, dataset download, model API, or API key is required.
+You need Python 3.9 or newer. On macOS, `/usr/bin/python3` (Python 3.9 from Apple's Command Line Tools) still works, but Python 3.9 and 3.10 no longer receive security fixes. Current NumPy releases need Python 3.12 or newer, so Python 3.12 or newer is recommended. Dependencies are NumPy and Matplotlib. Installation needs internet access, but training then runs locally on a CPU. No GPU, model API, or API key is required. Synthetic datasets need no download; the optional Iris import downloads its reviewed CSV once.
 
 Check `python3 --version` before creating the environment. If it reports 3.9 or 3.10 and a newer Python is installed, use that interpreter in the first command instead, for example `python3.12 -m venv .venv`.
 
@@ -212,3 +219,7 @@ npx wrangler pages deploy dist --project-name neural-math-lab --branch main
 The hosted build shares content-hashed JavaScript, CSS and WOFF2 fonts across pages. These assets have immutable browser caching; HTML still revalidates so deployments stay fresh. Scripts retain their exact tested bytes, use integrity checks, and load after parsing. The downloadable example reports remain self-contained.
 
 See [performance measurements and capacity-test scope](docs/performance.md) before running `npm run test:capacity`. The live workload is a bounded HTTP navigation simulation with reading time, not a fleet of full browsers. Regular `npm test` uses local fixtures and never load-tests the live website.
+
+## GitHub resource collection
+
+Explore the project-specific [resource catalog](resources/README.md): curated references, star-ranked discovery, dated source metadata, cached failure recovery and an optional read-only server API. The repository includes a daily refresh workflow; hosted sites still follow their existing deployment process.

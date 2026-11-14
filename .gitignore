@@ -10,3 +10,10 @@ runs/
 .pytest_cache/
 node_modules/
 .wrangler/
+
+# Explicitly imported datasets are local, reproducible cache data.
+/datasets/
+
+# Private transport cache; publish only the normalized resource snapshot.
+resources/*.cache.json
+resources/*.tmp

@@ -98,8 +98,8 @@ def save_pipeline(network, mean, scale, dataset, path):
 def _pipeline_from_document(doc):
     if not isinstance(doc, dict) or set(doc) != {"format", "model", "standardizer", "dataset"} or doc["format"] != "neural-math-lab-pipeline-v2":
         raise ValueError("Invalid pipeline format or fields.")
-    if doc["dataset"] not in ("moons", "circles"):
-        raise ValueError("Pipeline dataset must be moons or circles.")
+    if doc["dataset"] not in ("moons", "circles", "iris"):
+        raise ValueError("Pipeline dataset must be moons, circles or iris.")
     scaler = doc["standardizer"]
     if not isinstance(scaler, dict) or set(scaler) != {"mean", "scale"}:
         raise ValueError("Pipeline must contain mean and scale.")

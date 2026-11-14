@@ -13,7 +13,7 @@
 <main class="shell">
 <section class="intro"><div><p class="eyebrow">LAB 02 / ${DATASET} / MANUAL NUMPY</p><h1>See a network<br><em>learn the shape.</em></h1><p class="lead">Follow the boundary as it changes. Inspect each neuron. Then ask the important question: does it work on examples it never trained on?</p></div><aside class="run-card"><span class="eyebrow">THIS RECORDED EXPERIMENT</span><p class="architecture">2 <span>→</span> ${HIDDEN} <span>→</span> 1</p><p>Inputs <span> / </span> tanh neurons <span> / </span> sigmoid</p><div class="run-tags">${TAGS}</div><p class="muted">Replay recorded checkpoints, then experiment with temporary gradient steps in a separate training sandbox.</p></aside></section>
 <div class="metrics" role="group" aria-label="Selected model results">${METRIC_CARDS}</div>
-<p class="scope-note">The model was selected using validation loss. The held-out test set was evaluated afterward. These synthetic results describe this split and seed; repeated tuning against the test score would invalidate that separation.</p>
+<p class="scope-note">The model was selected using validation loss. The held-out test set was evaluated afterward. ${DATA_SCOPE} Repeated tuning against the test score would invalidate that separation.</p>
 
 <section id="experiment" class="panel lab-panel"><div class="section-heading"><div><p class="eyebrow">01 / REPLAY & EXPLORE</p><h2>A boundary built from simple operations.</h2></div><span id="frame-label" class="pill" aria-live="polite">Selected checkpoint</span></div>
 <noscript><p class="scope-note">Enable JavaScript for checkpoint replay and point inspection. The recorded results and static figure remain available below.</p></noscript>
