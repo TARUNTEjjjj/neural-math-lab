@@ -94,6 +94,9 @@ class ResourceDataTests(unittest.TestCase):
             self.assertIn("--data-path datasets/iris", report)
             self.assertNotIn("--noise None", report)
             self.assertNotIn("These synthetic results", report)
+            self.assertNotIn("this synthetic split", report)
+            self.assertIn("Replace datasets/iris with the directory you imported", report)
+            self.assertIn("fetch-dataset --output datasets/iris", report)
 
     def test_iris_requires_local_data_and_rejects_synthetic_options(self):
         for kwargs in ({"dataset": "iris"}, {"dataset": "iris", "data_path": FIXTURE, "samples": 200},

@@ -201,6 +201,7 @@ def write_experiment_report(result, output):
         "STATIC_FIGURE": svg[svg.index("<svg"):], "COMPARISON_TABLE": comparison,
         "DIAGNOSTIC_SUMMARY": diagnostic_summary, "DIAGNOSTIC_TABLES": diagnostic_tables,
         "CONFUSION": confusion, "SPLIT_TABLE": split_table, "ERROR_TABLE": error_table,
+        "REPRO_NOTE": ("The command runs locally in Python. Replace datasets/iris with the directory you imported, or first run: python -m neural_math_lab fetch-dataset --output datasets/iris. Training reads local data only." if config["dataset"] == "iris" else "The command runs locally in Python."),
         "REPRO_COMMAND": html.escape(command), "CONFIG": html.escape(json.dumps(serializable({"config": config, "seeds": result["seeds"], "environment": environment}), indent=2)),
     }
     report = Template((assets / "experiment.html").read_text(encoding="utf-8")).substitute(replacements)
