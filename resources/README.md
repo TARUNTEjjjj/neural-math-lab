@@ -33,7 +33,7 @@ A catalog update in GitHub does not by itself publish every hosted app: use that
 
 ## Source policy
 
-- **Neural network foundations**: [karpathy/micrograd](https://github.com/karpathy/micrograd), [d2l-ai/d2l-en](https://github.com/d2l-ai/d2l-en). Discovery: `topic:neural-network`.
-- **Datasets and scientific tools**: [scikit-learn/scikit-learn](https://github.com/scikit-learn/scikit-learn), [numpy/numpy](https://github.com/numpy/numpy). Discovery: `topic:machine-learning`.
+- **Neural network foundations**: [karpathy/micrograd](https://github.com/karpathy/micrograd), [d2l-ai/d2l-en](https://github.com/d2l-ai/d2l-en). Discovery: `topic:neural-network topic:from-scratch`.
+- **Datasets and scientific tools**: [scikit-learn/scikit-learn](https://github.com/scikit-learn/scikit-learn), [numpy/numpy](https://github.com/numpy/numpy). Discovery: `topic:machine-learning topic:datasets language:Python`.
 
 Implementation follows the official [GitHub search API](https://docs.github.com/en/rest/search/search), [repository search syntax](https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories), and [API best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api).
