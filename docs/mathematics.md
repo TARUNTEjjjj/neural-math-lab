@@ -190,9 +190,10 @@ $$
 =-y(1-p)+(1-y)p=p-y.
 $$
 
-This derivation assumes interior probabilities. The implementation obtains the
-same gradient directly as `p - y`, avoiding divisions by probabilities that may
-round to zero.
+This derivation assumes interior probabilities, $0<p<1$. The implementation
+never divides by a probability. It evaluates the simplified result $p-y$
+directly from the logit: $-\sigma(-z)$ for $y=1$ and $\sigma(z)$ for $y=0$, as
+described at the end of section 5.
 
 For the mean loss on $N$ rows, put $D_2=\partial L/\partial Z_2=(P-Y)/N$.
 Then reverse each operation:
@@ -213,7 +214,8 @@ Here $\odot$ denotes elementwise multiplication. The factor $1-A^2$ comes from
 $d\tanh z/dz=1-\tanh^2z$. Each bias is shared by every row, so its gradient
 sums the contributions from all rows.
 
-The corresponding NumPy operations are:
+Written directly in NumPy, with the arrays from `Network.forward`, these
+equations become:
 
 ```python
 dz2 = (p - y) / len(X)
@@ -228,6 +230,26 @@ db1 = dz1.sum(axis=0, keepdims=True)
 of size 1, preserving the bias shape. Divide by $N$ **once** at `dz2`; the later
 sums already carry that factor. Dividing again would shrink the gradient
 incorrectly.
+
+`Network.gradients` performs these steps, but it evaluates two factors from
+`z2` and `z1`, the values before activation, instead of from the rounded
+outputs `p` and `h`:
+
+```python
+# p - y, without subtracting a rounded probability:
+dz2 = np.where(y == 1, -sigmoid(-z2), sigmoid(z2)) / len(X)
+# 1 - h * h = 1 - tanh(z1)**2 = (2 * tail / (1 + tail**2))**2, where tail = exp(-|z1|):
+tail = np.exp(-np.abs(z1))
+dz1 = (dz2 @ W2.T) * (2 * tail / (1 + tail * tail)) ** 2
+```
+
+Here `sigmoid` is the overflow-safe sigmoid from section 5. The two versions
+are equal in exact arithmetic. In floating point, the subtractions lose
+relative accuracy as `p` or `|h|` approaches 1, and they return exactly 0 once
+it rounds to 1. `sigmoid(40)` rounds to 1, so `p - y` gives 0 for a positive
+target, although $-\sigma(-40)\approx-4.248\times10^{-18}$. Likewise `tanh(20)`
+rounds to 1, so `1.0 - h * h` gives 0, although
+$1-\tanh^2(20)\approx1.699\times10^{-17}$.
 
 All gradients refer to the same current parameter values. Calculate the entire
 gradient before updating any parameter: changing `W2` early would make the

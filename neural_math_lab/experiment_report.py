@@ -13,7 +13,7 @@ import numpy as np
 
 from .datasets import standardize
 from .diagnostics import input_sensitivity
-from .storage import model_document, save_pipeline
+from .storage import model_document, new_output_directory, save_pipeline
 
 
 def serializable(value):
@@ -75,12 +75,14 @@ def _diagnostic_tables(diagnostics):
 
 
 def _figures(result, output, bounds):
+    # Figures made without pyplot need no backend: the caller's backend and
+    # open figures stay untouched when the report is written in-process.
     import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure
     data, net, history = result["data"], result["network"], result["history"]
-    with plt.rc_context({"font.family": "DejaVu Sans", "axes.spines.top": False, "axes.spines.right": False, "svg.fonttype": "none", "svg.hashsalt": "neural-math-lab-v2"}):
-        fig, ax = plt.subplots(figsize=(7.2, 4), layout="constrained")
+    with matplotlib.rc_context({"font.family": "DejaVu Sans", "axes.spines.top": False, "axes.spines.right": False, "svg.fonttype": "none", "svg.hashsalt": "neural-math-lab-v2"}):
+        fig = Figure(figsize=(7.2, 4), layout="constrained")
+        ax = fig.subplots()
         ax.plot([r["epoch"] for r in history], [r["train_loss"] for r in history], color="#087f78", label="Training BCE")
         ax.plot([r["epoch"] for r in history], [r["val_loss"] for r in history], color="#b94d24", label="Validation BCE")
         ax.axvline(result["best_epoch"], color="#637d69", linestyle="--", label="Selected epoch")
@@ -88,10 +90,10 @@ def _figures(result, output, bounds):
         ax.legend(frameon=False)
         ax.grid(alpha=0.12)
         fig.savefig(output / "learning.svg", metadata={"Date": None})
-        plt.close(fig)
         xs, ys = np.meshgrid(np.linspace(bounds[0], bounds[1], 160), np.linspace(bounds[2], bounds[3], 120))
         probabilities = net.predict_proba(standardize(np.column_stack([xs.ravel(), ys.ravel()]), data["mean"], data["scale"])).reshape(xs.shape)
-        fig, ax = plt.subplots(figsize=(7.2, 4.5), layout="constrained")
+        fig = Figure(figsize=(7.2, 4.5), layout="constrained")
+        ax = fig.subplots()
         mesh = ax.pcolormesh(xs, ys, probabilities, cmap="BrBG", vmin=0, vmax=1, shading="auto", rasterized=True)
         if probabilities.min() < 0.5 < probabilities.max():
             ax.contour(xs, ys, probabilities, levels=[0.5], colors="#183e3b", linewidths=1)
@@ -103,7 +105,6 @@ def _figures(result, output, bounds):
         ax.legend(frameon=False, loc="upper right")
         fig.colorbar(mesh, ax=ax, label="Model output p")
         fig.savefig(output / "decision.svg", metadata={"Date": None})
-        plt.close(fig)
     for name in ("learning.svg", "decision.svg"):
         path = output / name
         text = "\n".join(line.rstrip() for line in path.read_text(encoding="utf-8").splitlines()) + "\n"
@@ -112,9 +113,17 @@ def _figures(result, output, bounds):
 
 
 def write_experiment_report(result, output):
-    """Write a new run; an existing directory is never overwritten."""
-    output = Path(output)
-    output.mkdir(parents=True, exist_ok=False)
+    """Write a new run; an existing directory is never overwritten.
+
+    If any step fails, for example because Matplotlib cannot be imported, the
+    partly written directory is removed so the path stays free for a corrected
+    run.
+    """
+    with new_output_directory(output) as directory:
+        _write_experiment_files(result, directory)
+
+
+def _write_experiment_files(result, output):
     data, config, network = result["data"], result["config"], result["network"]
     low, high = data["X"].min(axis=0), data["X"].max(axis=0)
     padding = np.maximum((high - low) * 0.12, 0.1)

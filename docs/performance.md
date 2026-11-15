@@ -178,8 +178,11 @@ hold-specific checks. The pooled overlap checks also all passed.
 
 Raw reports and the exact summary are retained in
 [`benchmarks/distributed-10000/`](../benchmarks/distributed-10000/README.md).
-Recomputing the downloaded reports locally against the current build produced
-the same summary. This supports the stated 60-second-reading navigation model
+Recomputing the downloaded reports locally against a build of that source
+commit reproduces the same summary byte for byte. Later commits changed the
+measured pages, so a build of a newer checkout correctly rejects the
+shards' recorded hashes; the benchmark README gives the reproduction steps.
+This supports the stated 60-second-reading navigation model
 from those generators and edges. It does not establish cold-start, long-soak,
 full-browser or worldwide performance, nor remove the failed laptop result.
 

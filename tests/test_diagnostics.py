@@ -2,6 +2,7 @@
 
 import json
 from decimal import Decimal
+import math
 import unittest
 from unittest.mock import patch
 
@@ -209,9 +210,22 @@ class ThresholdTests(unittest.TestCase):
                     self.assertEqual((result["fp"], result["fn"]), (3, 0))
 
     def test_equidistant_decimal_thresholds_prefer_higher_candidate(self):
-        # Both rules make one mistake and are 0.3 away from 0.5.
+        # Both candidate thresholds make one mistake and are 0.3 away from 0.5.
         result = select_threshold(column([1, 0, 1]), column([.2, .6, .8]))
         self.assertEqual(result["threshold"], .8)
+
+    def test_cost_ties_measure_distance_at_the_candidate_scores(self):
+        # The documented convention (README, docs/decision-mathematics.md):
+        # p >= 0.9 and p >= 0.3 both cost 1 and are 0.4 and 0.2 from 0.5.
+        # A threshold of 0.53 makes the same validation decisions as 0.9 and
+        # is only 0.03 from 0.5, but it is not a candidate.
+        y, p = column([1, 0, 1, 0]), column([.9, .52, .3, .1])
+        result = select_threshold(y, p)
+        self.assertEqual(result["threshold"], .3)
+        self.assertEqual((result["fp"], result["fn"], result["total_cost"]), (1, 0, 1.0))
+        same_as_top = evaluate_binary(y, p, .53)
+        self.assertEqual((same_as_top["fp"], same_as_top["fn"]), (0, 1))
+        self.assertEqual(same_as_top["confusion_matrix"], evaluate_binary(y, p, .9)["confusion_matrix"])
 
     def test_genuinely_different_costs_are_not_rounded_into_ties(self):
         # A small but resolvable advantage still beats proximity to 0.5.
@@ -284,6 +298,47 @@ class InputSensitivityTests(unittest.TestCase):
         expected = (np.exp(-1) / (1 + np.exp(-1)) ** 2) / np.cosh(20) ** 2
         np.testing.assert_allclose(input_sensitivity(network, [[0, 0]], [[0, 0]], [[1, 1]]),
                                    [[expected, -2 * expected]], rtol=1e-14, atol=0)
+
+    def test_saturated_units_keep_representable_derivatives(self):
+        # sigmoid(40) and tanh(20) round to exactly 1, so p*(1-p) and 1-h**2
+        # would return 0 for derivatives that float64 can still represent.
+        network = Network(hidden=1)
+        network.parameters = {"W1": np.array([[2.], [-1.]]), "b1": np.array([[0.]]),
+                              "W2": np.array([[3.]]), "b2": np.array([[0.]])}
+        mean, scale = [[1., 2.]], [[2., 4.]]
+        for logit in (40., -40.):
+            network.parameters["b2"][:] = logit
+            # sigmoid(z) * sigmoid(-z), written without 1 - p.
+            slope = 1 / ((1 + math.exp(-logit)) * (1 + math.exp(logit)))
+            with self.subTest(logit=logit), np.errstate(all="raise"):
+                np.testing.assert_allclose(input_sensitivity(network, [[1, 2]], mean, scale),
+                                           [[3 * slope, -.75 * slope]], rtol=1e-14, atol=0)
+        # tanh(20) rounds to 1, so z2 = 3 * 1 - 3 = 0 and sigmoid' = 1/4.
+        network.parameters["b1"][:] = 20
+        network.parameters["b2"][:] = -3
+        slope = 1 / math.cosh(20.) ** 2
+        with np.errstate(all="raise"):
+            np.testing.assert_allclose(input_sensitivity(network, [[1, 2]], mean, scale),
+                                       [[.75 * slope, -.1875 * slope]], rtol=1e-14, atol=0)
+
+    def test_hidden_units_beyond_half_the_float64_range_have_zero_slope(self):
+        # For a finite pre-activation above about 8.99e307 in size, 2|z1| is
+        # not a float64 number, so a slope formula that doubled z1 would
+        # overflow. That unit's slope is 0 in float64, as 1 - h**2 gives and
+        # the browser runtime computes; it is not an overflow error.
+        network = Network(hidden=2)
+        mean, scale = [[1., 2.]], [[2., 4.]]
+        hidden_slope = 1 / math.cosh(.6) ** 2
+        for weight in (1e308, -np.finfo(np.float64).max):
+            network.parameters = {"W1": np.array([[weight, .5], [0., -1.]]), "b1": np.array([[0., .1]]),
+                                  "W2": np.array([[3.], [-2.]]), "b2": np.array([[.2]])}
+            # Raw (3, 2) standardizes to (1, 0), so z1 = (weight, 0.6).
+            logit = 3 * math.copysign(1., weight) - 2 * math.tanh(.6) + .2
+            slope = hidden_slope / ((1 + math.exp(-logit)) * (1 + math.exp(logit)))
+            for settings in ({}, {"all": "raise"}):
+                with self.subTest(weight=weight, errors=settings), np.errstate(**settings):
+                    np.testing.assert_allclose(input_sensitivity(network, [[3, 2]], mean, scale),
+                                               [[-.5 * slope, .5 * slope]], rtol=1e-14, atol=0)
 
     def test_saturated_model_is_finite_with_zero_local_derivative(self):
         network = Network(hidden=1)

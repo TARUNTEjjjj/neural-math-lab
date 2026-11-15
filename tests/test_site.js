@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { buildSite, renderLesson } = require("../scripts/build-site.cjs");
+const { buildSite, hostedReport, renderLesson } = require("../scripts/build-site.cjs");
 
 const root = path.resolve(__dirname, "..");
 const lessonSlugs = ["mathematics", "exercises", "advanced-mathematics", "advanced-exercises",
@@ -114,6 +114,24 @@ test("hosted reports preserve exact data and runtime bytes with deferred integri
     } else assert.deepEqual(scripts(hosted), ['<script type="module" src="/resources/background.mjs"></script>'], "XOR calculations remain pre-rendered; only resource saving runs in the background.");
     assert.match(hosted, /connect-src 'self' https:\/\/raw.githubusercontent.com/);
     assert.match(hosted, /worker-src 'self'/);
+  }
+});
+
+test("hosted labs drop the offline reports' local-only claims", () => {
+  // Hosted pages load a shared stylesheet and publish no model, metrics, history or SVG files.
+  for (const name of ["moons", "circles", "xor"]) {
+    const hosted = read(`labs/${name}/index.html`);
+    for (const claim of ["OFFLINE REPORT", "Generated locally", "No remote assets", "opens offline", "Alongside this report", "in the repository"]) {
+      assert.ok(!hosted.includes(claim), `labs/${name} still says "${claim}"`);
+    }
+  }
+  const xor = read("labs/xor/index.html");
+  assert.match(xor, /<footer>Recorded by Neural Math Lab · No sign-in or model API\. Seeded runs are reproducible/);
+  assert.match(xor, /Running the command above writes this report together with <code>model\.json<\/code>/);
+  assert.match(xor, /Read <a href="\/learn\/mathematics\/">[^<]+<\/a> for the full derivation/);
+  // A template change must not silently publish an offline claim again.
+  for (const [name, removed] of [["moons", "OFFLINE REPORT"], ["circles", "No remote assets"], ["xor", "This report opens offline."]]) {
+    assert.throws(() => hostedReport(name, offlineSnapshots[name].replace(removed, "")), /no longer contains/);
   }
 });
 

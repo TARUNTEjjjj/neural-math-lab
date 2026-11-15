@@ -8,12 +8,14 @@ import numpy as np
 
 from neural_math_lab.core import Network
 from neural_math_lab.datasets import standardize
+from neural_math_lab.diagnostics import evaluate_binary
 from neural_math_lab.experiment import (
     Adam,
     SGD,
     classification_metrics,
     objective_and_gradients,
     run_experiment,
+    _fit,
     _Logistic,
 )
 
@@ -39,6 +41,13 @@ class OptimizerTests(unittest.TestCase):
             expected -= rate * corrected_first / (math.sqrt(corrected_second) + epsilon)
             optimizer.step(parameters, {"w": np.array([[gradient]])})
             self.assertAlmostEqual(float(parameters["w"][0, 0]), expected, places=14)
+
+    def test_underflowing_sgd_step_is_rounding_not_overflow(self):
+        # 1e-10 * 1e-300 is below the normal float64 range: the step underflows.
+        parameters = {"w": np.array([[1., 0.]])}
+        with np.errstate(all="raise"):
+            SGD(learning_rate=1e-10).step(parameters, {"w": np.array([[1e-300, 1e-300]])})
+        np.testing.assert_array_equal(parameters["w"], [[1., -(1e-10 * 1e-300)]])
 
     def test_zero_gradients_leave_parameters_unchanged(self):
         for optimizer in (SGD(.1), Adam(.1)):
@@ -188,6 +197,42 @@ class RegularizationTests(unittest.TestCase):
                     parameters[index] = original
             np.testing.assert_allclose(gradients[name], numeric, atol=2e-8, rtol=2e-6, err_msg=name)
 
+    def test_baseline_regularized_gradients_match_independent_finite_differences(self):
+        # Several rows expose a wrong 1/N scale and a positive L2 coefficient
+        # exposes a missing penalty: a single row with l2=0 hides both.
+        baseline = _Logistic()
+        baseline.parameters["W"][:] = [[.8], [-1.3]]
+        baseline.parameters["b"][:] = .4
+        X = np.array([[.2, -.4], [.7, .3], [-.1, .8], [1.5, -.6], [-.9, -1.2]])
+        y = np.array([[0.], [1.], [1.], [0.], [1.]])
+        strength, epsilon = .17, 1e-6
+
+        def independent_objective():
+            # Mean BCE of sigmoid(x . w + b), plus (l2 / 2) |w|^2; b is not penalized.
+            w0, w1 = float(baseline.parameters["W"][0, 0]), float(baseline.parameters["W"][1, 0])
+            b = float(baseline.parameters["b"][0, 0])
+            total = 0.
+            for (x0, x1), target in zip(X.tolist(), y[:, 0]):
+                logit = x0 * w0 + x1 * w1 + b
+                total += math.log1p(math.exp(-logit if target else logit))
+            return total / len(X) + strength / 2 * (w0 ** 2 + w1 ** 2)
+
+        objective, gradients = objective_and_gradients(baseline, X, y, strength)
+        self.assertAlmostEqual(objective, independent_objective(), places=13)
+        for name, parameters in baseline.parameters.items():
+            numeric = np.empty_like(parameters)
+            for index in np.ndindex(parameters.shape):
+                original = parameters[index]
+                try:
+                    parameters[index] = original + epsilon
+                    plus = independent_objective()
+                    parameters[index] = original - epsilon
+                    minus = independent_objective()
+                    numeric[index] = (plus - minus) / (2 * epsilon)
+                finally:
+                    parameters[index] = original
+            np.testing.assert_allclose(gradients[name], numeric, atol=2e-8, rtol=2e-6, err_msg=name)
+
 
 class MetricTests(unittest.TestCase):
     def test_confusion_precision_recall_f1_and_brier_match_hand_counts(self):
@@ -208,6 +253,15 @@ class MetricTests(unittest.TestCase):
         self.assertEqual(metrics["accuracy"], 1)
         for key in ("precision", "recall", "f1"):
             self.assertEqual(metrics[key], 0)
+
+    def test_vanishing_scores_are_valid_even_under_strict_numpy_settings(self):
+        # Squaring a score below about 1.5e-154 underflows; that is rounding.
+        y = np.array([[0.], [1.], [1.], [0.]])
+        p = np.array([[1e-200], [.7], [.4], [1e-310]])
+        with np.errstate(all="raise"):
+            metrics = classification_metrics(y, p, loss=.1)
+        self.assertAlmostEqual(metrics["brier"], ((1 - .7) ** 2 + (1 - .4) ** 2) / 4, places=15)
+        self.assertAlmostEqual(metrics["brier"], evaluate_binary(y, p)["brier"], places=15)
 
     def test_invalid_probabilities_or_labels_are_rejected(self):
         for p in (np.array([[-.1], [.5]]), np.array([[1.1], [.5]]),
@@ -231,6 +285,25 @@ class ExperimentTests(unittest.TestCase):
         self.assertAlmostEqual(network.loss(Xval, data["y"][data["val_idx"]]), best_row["val_loss"], places=13)
         self.assertAlmostEqual(result["metrics"]["validation"]["loss"], best_row["val_loss"], places=13)
         self.assertEqual(result["stopped_epoch"], result["history"][-1]["epoch"])
+
+    def test_history_rows_measure_the_weights_saved_at_their_epoch(self):
+        # Every row's loss, accuracy and gradient norm describe the weights at
+        # the end of that epoch, which its checkpoint saves (one per epoch here).
+        result, data = self.result, self.result["data"]
+        splits = {name: (standardize(data["X"][data[key]], data["mean"], data["scale"]), data["y"][data[key]])
+                  for name, key in (("train", "train_idx"), ("val", "val_idx"))}
+        self.assertEqual(len(result["checkpoints"]), len(result["history"]))
+        for checkpoint in result["checkpoints"]:
+            network = Network(hidden=self.settings["hidden"])
+            network.parameters = {name: np.array(value) for name, value in checkpoint["parameters"].items()}
+            row = result["history"][checkpoint["epoch"]]
+            with self.subTest(epoch=checkpoint["epoch"]):
+                for name, (X, y) in splits.items():
+                    self.assertAlmostEqual(row[name + "_loss"], network.loss(X, y), places=13)
+                    self.assertEqual(row[name + "_accuracy"], float(np.mean((network.predict_proba(X) >= .5) == y)))
+                _, gradients = objective_and_gradients(network, *splits["train"], l2=.001)
+                norm = math.sqrt(sum(float(np.sum(g ** 2)) for g in gradients.values()))
+                self.assertAlmostEqual(row["gradient_norm"] / norm, 1, places=12)
 
     def test_metrics_count_exactly_the_requested_split_rows(self):
         for split, key in (("train", "train_idx"), ("validation", "val_idx"), ("test", "test_idx")):
@@ -311,6 +384,95 @@ class ExperimentTests(unittest.TestCase):
                 self.assertGreaterEqual(result["metrics"]["test"]["accuracy"], .75)
                 self.assertLess(result["metrics"]["train"]["loss"], result["history"][0]["train_loss"])
                 self.assertLessEqual(len(result["checkpoints"]), 61)
+
+    def test_diverging_training_names_the_settings_to_reduce(self):
+        # Each SGD update scales the weights by 1 - learning_rate * l2 = -999.
+        cases = (({"optimizer": "sgd", "learning_rate": 1000., "l2": 1.}, "the learning rate or the L2 coefficient"),
+                 ({"optimizer": "adam", "learning_rate": 1e300}, "the learning rate"))
+        for settings, advice in cases:
+            with self.subTest(**settings):
+                with self.assertRaises(ValueError) as caught:
+                    run_experiment(samples=120, hidden=5, epochs=60, seed=13, **settings)
+                message = str(caught.exception)
+                self.assertRegex(message, r"^Training diverged at epoch [1-9][0-9]*: ")
+                self.assertTrue(message.endswith("; reduce " + advice), message)
+                self.assertNotIn("smaller weights", message)
+                self.assertIsInstance(caught.exception.__cause__, ValueError)
+
+    def test_each_epoch_needs_one_forward_pass_per_batch_and_per_split(self):
+        # Updates need one pass over each mini-batch. Each epoch then needs one
+        # pass over the training rows, which gives the full-batch gradient (for
+        # its norm) and the training loss and accuracy, and one over the
+        # validation rows. Nothing computed is discarded or recomputed. The
+        # baseline's forward pass is its affine score, so count its logits.
+        rng = np.random.default_rng(5)
+        X_train, X_val = rng.normal(size=(10, 2)), rng.normal(size=(4, 2))
+        y_train, y_val = np.array([[0.], [1.]] * 5), np.array([[0.], [1.]] * 2)
+        config = {"optimizer": "adam", "learning_rate": .01, "epochs": 3, "batch_size": 4,
+                  "l2": .001, "patience": 10, "min_delta": 0.}
+        train, validation = len(X_train), len(X_val)
+        for model, owner, method in ((Network(hidden=3, seed=5), Network, "forward"),
+                                     (_Logistic(), _Logistic, "_logits")):
+            rows = []
+            original = getattr(owner, method)
+
+            def counted(instance, X, original=original, rows=rows):
+                rows.append(len(X))
+                return original(instance, X)
+
+            with self.subTest(model=owner.__name__), patch.object(owner, method, counted):
+                history = _fit(model, X_train, y_train, X_val, y_val, config, 1, snapshots=False)[0]
+                self.assertEqual(len(history), 4)
+                self.assertEqual(sum(rows), (train + validation) + 3 * (2 * train + validation))
+
+    def test_replaced_methods_give_the_recorded_metrics_and_gradient_norm(self):
+        # Replaced predict_proba, loss or gradients methods are called, so the
+        # logged gradient norm describes the derivatives the updates used, and
+        # the recorded metrics use the replaced loss and scores. These return
+        # zero derivatives (with l2 = 0 no update changes the weights), a loss
+        # one higher than the model's own, and the score 1 for every row.
+        rng = np.random.default_rng(5)
+        X_train, X_val = rng.normal(size=(10, 2)), rng.normal(size=(4, 2))
+        y_train, y_val = np.array([[0.], [1.]] * 5), np.array([[0.], [1.]] * 2)
+        config = {"optimizer": "adam", "learning_rate": .01, "epochs": 3, "batch_size": 4,
+                  "l2": 0., "patience": 10, "min_delta": 0.}
+        for owner, make in ((Network, lambda cls: cls(hidden=3, seed=5)), (_Logistic, lambda cls: cls())):
+            class Replaced(owner):
+                def predict_proba(self, X):
+                    return np.ones((len(X), 1))
+
+                def loss(self, X, y):
+                    return super().loss(X, y) + 1.0
+
+                def gradients(self, X, y):
+                    return {name: np.zeros_like(value) for name, value in self.parameters.items()}
+
+            plain = make(owner)
+            row = {"train_loss": plain.loss(X_train, y_train) + 1.0, "val_loss": plain.loss(X_val, y_val) + 1.0,
+                   "train_accuracy": .5, "val_accuracy": .5, "gradient_norm": 0.}
+            with self.subTest(model=owner.__name__):
+                history = _fit(make(Replaced), X_train, y_train, X_val, y_val, config, 1, snapshots=False)[0]
+                self.assertEqual(history, [dict(row, epoch=epoch) for epoch in range(4)])
+
+    def test_vanishing_gradients_train_identically_under_strict_numpy_settings(self):
+        # A saturated, correctly classified network has derivatives near 2e-313.
+        # Their squares in the gradient norm, and SGD's steps, underflow.
+        X, y = np.zeros((6, 2)), np.ones((6, 1))
+        config = {"optimizer": "sgd", "learning_rate": .5, "epochs": 2, "batch_size": 4,
+                  "l2": .001, "patience": 10, "min_delta": 0.}
+        results = []
+        for settings in ({}, {"all": "raise"}):
+            network = Network(hidden=2, seed=7)
+            network.parameters["W1"][:] = 0
+            network.parameters["W2"][:] = 0
+            network.parameters["b2"][:] = 720.
+            with np.errstate(**settings):
+                history, _, best, stopped, reason = _fit(network, X, y, X, y, config, 3, snapshots=False)
+            results.append((history, best, stopped, reason,
+                            {name: value.tolist() for name, value in network.parameters.items()}))
+        self.assertEqual(results[1], results[0])
+        self.assertEqual(results[1][2], 2)
+        self.assertGreater(results[1][0][-1]["train_loss"], 0)
 
     def test_invalid_settings_fail_before_training(self):
         cases = [{"epochs": 0}, {"epochs": True}, {"learning_rate": 0},

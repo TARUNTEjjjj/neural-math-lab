@@ -76,6 +76,12 @@ def select_threshold(y, p, fp_cost=1.0, fn_cost=1.0):
     float64 epsilons of their respective minimum (relative, no absolute floor)
     are tied. This is a deterministic convention, not a claim that the selected
     threshold generalizes to another population.
+
+    Distance is measured at the candidate itself. A score is the highest
+    threshold giving its pattern, so a pattern above 0.5 is measured at its far
+    end: a tie can pick a lower threshold although a non-candidate threshold
+    with the same validation decisions lies closer to 0.5 (for example,
+    y=[1,0,1,0] and p=[.9,.52,.3,.1] select 0.3, not a value in (0.52, 0.9]).
     """
     y, p = _scores(y, p)
     fp_cost, fn_cost = _cost(fp_cost, "fp_cost"), _cost(fn_cost, "fn_cost")
@@ -174,6 +180,9 @@ def input_sensitivity(network, raw, mean, scale):
     """Return dP/d(raw input), one row per point and one column per coordinate.
 
     dP/dx_j = P(1-P) * sum_k[W1[j,k](1-H_k^2)W2[k,0]] / scale_j.
+    P(1-P) and 1-H_k^2 are evaluated from z2 and z1, before activation, so an
+    output rounded to exactly 1 or a tanh rounded to +-1 keeps a representable
+    slope.
     These are local derivatives of a fitted model, not causal explanations.
     """
     if not isinstance(network, Network):

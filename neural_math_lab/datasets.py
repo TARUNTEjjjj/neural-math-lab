@@ -77,7 +77,8 @@ def stratified_split(y, seed=7):
 def fit_standardizer(X_train):
     """Compute population moments from training examples only."""
     X_train = _inputs(X_train)
-    with np.errstate(over="raise", invalid="raise"):
+    # Tiny deviations may underflow when squared; only overflow is an error.
+    with np.errstate(over="raise", invalid="raise", under="ignore"):
         try:
             mean = X_train.mean(axis=0, keepdims=True)
             scale = X_train.std(axis=0, keepdims=True)
@@ -95,7 +96,7 @@ def standardize(X, mean, scale):
     mean, scale = _matrix(mean, "mean"), _matrix(scale, "scale")
     if mean.shape != (1, 2) or scale.shape != (1, 2) or np.any(scale <= 0):
         raise ValueError("mean and positive scale must both have shape (1, 2)")
-    with np.errstate(over="raise", invalid="raise", divide="raise"):
+    with np.errstate(over="raise", invalid="raise", divide="raise", under="ignore"):
         try:
             result = (X - mean) / scale
         except FloatingPointError as exc:

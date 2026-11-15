@@ -110,6 +110,13 @@ The factor $1/N$ appears once, in $D_2$. Summing bias derivatives over rows
 does not introduce a second averaging factor. The L2 derivative is
 $\lambda W$, because differentiating $(\lambda/2)W^2$ cancels the 2.
 
+The factor $1-A^2$ has the same rounding hazard as $p-y$. Once an entry of
+$Z_1$ exceeds about 19 in magnitude, its $\tanh$ rounds to exactly $\pm1$ and
+$1-A^2$ evaluates to 0, although the true slope is still representable:
+$1-\tanh^2(20)\approx1.699\times10^{-17}$. The sandbox therefore computes each
+entry from the pre-activation as $(2t/(1+t^2))^2$ with $t=e^{-|Z_1|}$, which
+equals $1-\tanh^2(Z_1)$.
+
 A parameter derivative answers: “If this one weight or bias increases by a
 small amount while every other parameter stays fixed, how does this batch's
 objective change?” It is different from $\partial p/\partial x$ in the input

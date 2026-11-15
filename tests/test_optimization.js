@@ -83,6 +83,17 @@ test("correct saturated outputs retain tiny derivatives instead of a false stati
   }
 });
 
+test("a hidden unit whose tanh rounds to +-1 keeps tiny weight and bias derivatives", () => {
+  for (const a of [20, -20]) {
+    const h = Math.tanh(a), slope = 1 / Math.cosh(a) ** 2, dz = -1 / (1 + Math.exp(h));
+    assert.equal(h * h, 1);
+    const weights = { W1: [[0], [0]], b1: [[a]], W2: [[1]], b2: [[0]] };
+    const result = objectiveAndGradients(weights, { X: [[1, -2]], y: [1], mean: [[0, 0]], scale: [[1, 1]] });
+    const expected = { W1: [[slope * dz], [-2 * slope * dz]], b1: [[slope * dz]], W2: [[h * dz]], b2: [[dz]] };
+    for (const c of parameterKeys(weights)) near(result.gradients[c.name][c.row][c.col] / expected[c.name][c.row][c.col], 1, 1e-14);
+  }
+});
+
 test("large step can increase true loss despite negative first-order change", () => {
   const weights = { W1: [[0], [0]], b1: [[0]], W2: [[0]], b2: [[0]] };
   const data = { X: [[0, 0], [0, 0], [0, 0], [0, 0]], y: [1, 1, 1, 0], mean: [[0, 0]], scale: [[1, 1]] };

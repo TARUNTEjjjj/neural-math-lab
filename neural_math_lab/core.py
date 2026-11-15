@@ -168,7 +168,7 @@ class Network:
         X = _inputs(X)
         weights = self._parameters()
         try:
-            with np.errstate(over="raise", invalid="raise"):
+            with np.errstate(over="raise", invalid="raise", under="ignore"):
                 z1 = _matmul(X, weights["W1"]) + weights["b1"]
                 h = np.tanh(z1)
                 z2 = _matmul(h, weights["W2"]) + weights["b2"]
@@ -193,7 +193,15 @@ class Network:
         """Apply the chain rule to the mean loss; no automatic differentiation."""
         X = _inputs(X)
         y = _targets(y, len(X))
-        cache = self.forward(X)
+        return self._backward(X, y, self.forward(X))
+
+    def _backward(self, X, y, cache) -> Dict[str, np.ndarray]:
+        """Backpropagate from ``cache``, this network's forward pass of X.
+
+        X and y must already be validated, and the weights unchanged since the
+        forward pass. Training calls this directly to reuse the pass that also
+        gives its recorded loss and accuracy.
+        """
         weights = self._parameters()
         try:
             with np.errstate(over="raise", invalid="raise", under="ignore"):
@@ -226,7 +234,9 @@ class Network:
             if gradient.shape != weights[name].shape:
                 raise ValueError("gradient {} must have shape {}".format(name, weights[name].shape))
             try:
-                with np.errstate(over="raise", invalid="raise"):
+                # A step too small for float64 rounds toward zero. That is
+                # underflow, not overflow, even under strict NumPy errors.
+                with np.errstate(over="raise", invalid="raise", under="ignore"):
                     updated[name] = weights[name] - rate * gradient
             except FloatingPointError as error:
                 raise ValueError("parameter update overflowed; reduce learning_rate") from error
@@ -235,12 +245,36 @@ class Network:
         self.parameters.update(updated)
 
 
+# Training computes what these methods return from one forward pass, but only
+# while they are Network's own. They are captured here, at definition, so that
+# a later replacement of the class attribute (for example by
+# unittest.mock.patch.object) is recognized as a replacement too.
+_NETWORK_METHODS = {name: Network.__dict__[name] for name in ("predict_proba", "loss", "gradients")}
+
+
+def _uses_methods(model, methods: Dict[str, object]) -> bool:
+    """Whether calling model.<name> runs methods[name], for every name.
+
+    It does not when a subclass overrides the method, the instance holds an
+    attribute of that name, or the class attribute has been replaced.
+    """
+    own = getattr(model, "__dict__", {})
+    return all(name not in own and getattr(type(model), name, None) is method
+               for name, method in methods.items())
+
+
 def train(network: Network, X, y, epochs: int = 4000,
           learning_rate: float = 0.5) -> List[dict]:
     """Full-batch descent, recording epoch 0 and each completed update.
 
     Accuracy is measured on the supplied training examples. This function does
     not create a test set or make a claim about generalization.
+
+    Each record holds the network's loss and the accuracy of its predict_proba
+    scores, and each update steps along its gradients. Network's own versions
+    of these three methods would each repeat the forward pass, so train
+    computes all three from one pass per epoch. A replacement of any of them,
+    such as a subclass override, is called instead.
     """
     count = _integer(epochs, "epochs", 1, 100000)
     rate = _positive(learning_rate, "learning_rate")
@@ -248,11 +282,16 @@ def train(network: Network, X, y, epochs: int = 4000,
     y = _targets(y, len(X))
     history = []
     for epoch in range(count + 1):
-        p = network.predict_proba(X)
-        history.append({"epoch": epoch, "loss": network.loss(X, y),
-                        "accuracy": float(np.mean((p >= 0.5) == y))})
+        single_pass = _uses_methods(network, _NETWORK_METHODS)
+        if single_pass:
+            cache = network.forward(X)
+            p, loss = cache["p"], _binary_loss(cache["z2"], y)
+        else:
+            p, loss = network.predict_proba(X), network.loss(X, y)
+        history.append({"epoch": epoch, "loss": loss, "accuracy": float(np.mean((p >= 0.5) == y))})
         if epoch < count:
-            network.step(network.gradients(X, y), rate)
+            gradients = network._backward(X, y, cache) if single_pass else network.gradients(X, y)
+            network.step(gradients, rate)
     return history
 
 
@@ -287,8 +326,12 @@ def gradient_check(network: Network, X, y, epsilon: float = 1e-5) -> dict:
                     temporary[name][index] = value
             absolute = np.abs(analytic[name] - numeric)
             scale = np.maximum(1e-8, np.abs(analytic[name]) + np.abs(numeric))
+            # A tiny absolute error over the 1e-8 floor can round to a
+            # subnormal or 0. That is underflow, even under strict NumPy errors.
+            with np.errstate(under="ignore"):
+                relative = absolute / scale
             per_parameter[name] = {"max_abs_error": float(np.max(absolute)),
-                                   "max_relative_error": float(np.max(absolute / scale))}
+                                   "max_relative_error": float(np.max(relative))}
     finally:
         network.parameters.update(originals)
     return {"per_parameter": per_parameter,

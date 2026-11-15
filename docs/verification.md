@@ -1,5 +1,106 @@
 # Release verification
 
+## Code review fixes — 15 November 2026
+
+These fixes come from a code review of the package, the browser runtimes, the
+site build and the guides, made on 9 November. They were then moved onto the
+main branch of 14 November. That branch already evaluates the derivative
+factors `p(1 - p)` and `1 - h**2` without subtracting a rounded activation,
+saves networks whose parameters are nested lists, and adds the resource
+library and the Iris importer. Every figure below was measured again on that
+base. The committed examples were not regenerated. Only the static section 03
+text of the XOR report was updated.
+
+The main branch evaluates the two derivative factors from `z2` and `z1`, as
+`u/(1+u)^2` with `u = exp(-|z2|)` and `(2t/(1+t^2))^2` with `t = exp(-|z1|)`.
+Python and the reports' browser code for input sensitivity use both factors;
+the browser gradient sandbox needs only the second. Against a 60-digit
+reference, the Python functions stayed within 5 units in the last place at 4
+million sampled arguments, up to 700 in size for the sigmoid factor and 350 for
+the tanh factor (largest errors 3.9 and 4.9 units). The subtractions they
+replaced lost accuracy as `p` or `|h|` approached 1 (up to 7e9 units for
+`3 < |z1| < 12`) and returned exactly 0 once it rounded to 1, although the
+derivative was still representable: `1/cosh(20)^2` is about `1.7e-17`. Beyond
+about `|z1| = 373` the tanh factor is smaller than any float64 number and
+rounds to 0, without an error, up to the largest finite pre-activation.
+Rerunning the committed examples with this code changes floating-point values
+by at most a relative 4.2e-12 (circles), 1.6e-12 (moons) and 9.4e-14 (XOR
+`metrics.json` and `model.json`; 1.8e-13 in its `history.csv`), against
+1.7e-11, 5.0e-13 and 9.5e-14 on 8 November. Every accuracy, confusion count,
+ROC AUC, average precision, and selected or stopped epoch stays the same. The
+network's selected thresholds change only in their last digits: moons
+0.6830711918697014 becomes 0.6830711918697022, and circles 0.4430678144727584
+becomes 0.44306781447275884. None of this drift comes from the fixes in this
+entry: with and without them, the three reruns write byte-identical JSON and
+CSV files.
+
+Training no longer runs forward passes whose results it discards or repeats. A
+default moons epoch passes 840 rows through the network instead of 2,400: 360
+for the mini-batch updates, 360 for both the gradient norm and the training
+metrics, and 120 validation rows. XOR training needs one forward pass per
+update instead of three. Training shares one pass only while `predict_proba`,
+`loss` and `gradients` are those of `Network` (or of the logistic baseline). If
+a subclass, an instance attribute or a patch replaces any of them, training
+calls those methods as before, so a learner's own derivative drives both the
+updates and the logged gradient norm. These changes leave every training result
+bit-identical: 8 experiment configurations (moons, circles and Iris, with Adam
+and SGD) and 27 XOR configurations gave the same histories, metrics,
+diagnostics and weights with and without them.
+
+Training also no longer evaluates the L2 penalty value that it discarded, so a
+diverging run no longer stops with "Regularization overflowed; use smaller
+weights" once its squared weights overflow. It continues until a weight,
+derivative or update overflows, which is reported as "Training diverged at
+epoch N: the weights or derivatives overflowed; reduce the learning rate" (with
+"or the L2 coefficient" for SGD with L2). Some diverging runs now finish, as
+runs with `--l2 0` already did: `experiment --learning-rate 1e155` now exits
+with status 0 and "Selected epoch 0 by validation loss; stopped at 100
+(validation_patience)", where it exited with status 2 before. Early stopping
+restores the epoch-0 weights, so the report shows that training made no
+progress.
+
+Under strict NumPy settings (`np.errstate(all="raise")`), underflow is now
+treated as rounding, as under NumPy's defaults. Parameter updates, the forward
+pass, standardization, the gradient norm, the Brier score, `explain --delta`
+and `gradient_check` no longer fail when a value rounds to a subnormal number
+or zero. A grid of 144 small training configurations now completes under
+strict settings, with the same results as under the defaults: moons and
+circles, noise 0 or 0.1, Adam learning rates 1, 5 and 20, L2 of 0 or 1e-6, 16
+or 64 hidden units and three seeds, each with 120 samples and 80 epochs.
+Without these fixes, 46 of them fail: 40 with "Gradient norm overflowed" and 6
+with an underflow error in the Brier score. Genuine overflow is still rejected.
+
+If a report fails after its output directory was created, for example because
+the decision grid overflows, the directory is removed, so a corrected rerun can
+use the same path. An existing directory is never touched. `train` and
+`experiment` now check for Matplotlib before training: a missing installation
+is a one-line error with exit status 2, instead of a traceback after training.
+`model.json` and `pipeline.json` get the same permissions as the other output
+files (set by the umask, typically 0644) instead of 0600. Overwriting a file
+keeps its mode, and saving through a symbolic link replaces the link's target.
+The report writers no longer switch the caller's Matplotlib backend or close
+its figures. Identical XOR `train` runs now write byte-identical files,
+including the SVG ids. The XOR report writer now accepts networks whose
+parameters are nested lists or tuples, as saving a model already does.
+
+In the site build, the hosted XOR lab no longer repeats the offline report's
+local-only claims, and the build fails if a report template loses a phrase
+that it must rewrite. The guides show how the code evaluates the two derivative
+factors. The README and the decision guide state which candidate thresholds a
+cost tie chooses among. The capacity benchmark README gives a working recipe
+for recomputing its summary from the build it measured (244091d).
+
+The complete local suite passed **204 Python tests** and **71 Node.js tests**,
+together with the 27 resource-catalog and 63 resource-library tests, followed
+by the site build and the CI workflows' command-line smoke steps, on macOS
+Apple Silicon with Python 3.9.6, NumPy 2.0.2, Matplotlib 3.9.4 and Node.js
+26.13.0. New tests compare every number in the reports and command summaries
+with the saved files. They also check that `gradient_check` detects and
+locates a wrong derivative, compare the logistic baseline's regularized
+gradient with an independent objective, and cover each change above. The
+other Python versions, the minimum-dependency job and Linux were not rerun
+for this entry.
+
 ## Toolchain refresh — 8 November 2026
 
 This refresh changes no package code. It updates continuous integration and

@@ -68,6 +68,23 @@ function renderLesson(slug, source) {
   return page(LESSONS[slug], `<main id="main" class="site-main lesson-layout"><article class="lesson-content"><p class="eyebrow">THE MATHS / LEARNING NOTES</p>${rendered}<p><a class="button" href="/labs/moons/#gradient-lab">Try the gradient lab →</a></p></article><aside class="lesson-sidebar"><h2>On this page</h2><ol>${headings.join("")}</ol><h2>Keep learning</h2><ul>${links()}</ul></aside></main>`, '<link rel="stylesheet" href="/assets/katex/katex.min.css">');
 }
 
+// Offline reports describe themselves as self-contained local files. Hosted
+// copies load a shared stylesheet and publish no run files, so each claim is
+// rewritten; wording that no longer matches its template fails the build.
+const HOSTED_WORDING = {
+  experiment: [
+    ["OFFLINE REPORT", "BROWSER LEARNING LAB"],
+    ["Generated locally · No telemetry · No remote assets", "Browser calculations · Temporary sandbox · No sign-in required"]
+  ],
+  xor: [
+    [" in the repository for the full derivation", " for the full derivation"],
+    ["Alongside this report: <code>model.json</code> contains the weights; <code>metrics.json</code> records the results; <code>history.csv</code> records every epoch. Both figures are separate SVG files as well as embedded here.",
+      "Running the command above writes this report together with <code>model.json</code> (the weights), <code>metrics.json</code> (the results), <code>history.csv</code> (every epoch) and both figures as separate SVG files."],
+    ["Generated locally by Neural Math Lab · No remote assets, accounts, or model API. This report opens offline.",
+      "Recorded by Neural Math Lab · No sign-in or model API."]
+  ]
+};
+
 function hostedReport(name, original, publishAsset) {
   const nav = `<nav class="hosted-nav" aria-label="Learning website"><a href="/">← Learning home</a><a href="/labs/moons/">Moons</a><a href="/labs/circles/">Circles</a><a href="/labs/xor/">XOR</a><a href="/learn/optimization-mathematics/">Maths guides</a></nav>`;
   const style = '.hosted-nav{display:flex;flex-wrap:wrap;gap:12px 24px;padding:16px max(16px,calc((100% - 1280px)/2));background:#193e3b;color:#fff;font:600 13px system-ui}.hosted-nav a{color:#fff;text-decoration:none}.hosted-nav a:hover{text-decoration:underline}.hosted-nav a:focus-visible{outline:2px solid #fff;outline-offset:4px}';
@@ -82,8 +99,10 @@ function hostedReport(name, original, publishAsset) {
   for (const [slug, title] of Object.entries(LESSONS)) {
     html = html.replaceAll(`<code>docs/${slug}.md</code>`, `<a href="/learn/${slug}/">${title}</a>`);
   }
-  html = html.replace("OFFLINE REPORT", "BROWSER LEARNING LAB");
-  html = html.replace("Generated locally · No telemetry · No remote assets", "Browser calculations · Temporary sandbox · No sign-in required");
+  for (const [offline, hosted] of HOSTED_WORDING[name === "xor" ? "xor" : "experiment"]) {
+    if (!html.includes(offline)) throw new Error(`The ${name} report no longer contains "${offline}"; update its hosted wording.`);
+    html = html.replace(offline, hosted);
+  }
   if (publishAsset) {
     // Share cacheable bytes between hosted labs. Offline reports stay self-contained.
     html = html.replace(/<style>([\s\S]*?)<\/style>/, (_, css) => `<link rel="stylesheet" href="${publishAsset("lab", "css", css)}">`);
