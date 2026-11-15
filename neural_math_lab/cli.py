@@ -50,6 +50,16 @@ def parser():
     return result
 
 
+def _require_matplotlib():
+    """Fail before training, which can take minutes, if no report can be drawn."""
+    try:
+        # What the report writers import. It selects no Matplotlib backend.
+        import matplotlib.figure  # noqa: F401
+    except ImportError as exc:
+        raise ValueError("Matplotlib could not be imported ({}); it is needed to draw the report. "
+                         "Install the package's dependencies and run the command again.".format(exc)) from exc
+
+
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
@@ -91,7 +101,7 @@ def main(argv=None):
                     delta = np.asarray([args.delta], dtype=np.float64)
                     if not np.isfinite(delta).all():
                         raise ValueError("delta must contain two finite raw-input displacements")
-                    with np.errstate(over="raise", invalid="raise"):
+                    with np.errstate(over="raise", invalid="raise", under="ignore"):
                         moved = raw + delta
                         approximation = float(values["p"][0, 0] + np.sum(sensitivity * delta))
                     actual = float(network.predict_proba(standardize(moved, mean, scale))[0, 0])
@@ -111,6 +121,7 @@ def main(argv=None):
             args.output = Path("runs") / args.dataset
         if args.output.exists():
             raise ValueError("Output directory already exists. Choose a new --output path to preserve previous experiments.")
+        _require_matplotlib()
         if args.command == "experiment":
             from .experiment import run_experiment
             from .experiment_report import write_experiment_report

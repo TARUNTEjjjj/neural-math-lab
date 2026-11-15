@@ -102,7 +102,7 @@ Each class is split approximately **60% training / 20% validation / 20% test**, 
 
 Both models use the same split and scaler, with the same optimizer and hyperparameter budget, but each selects its own epoch using validation loss. This comparison does not exhaust the best possible tuning of either model.
 
-After selecting weights, each model chooses its decision threshold using **validation cost only**. The cost is `(fp_cost × FP + fn_cost × FN) / N`; both costs default to 1. Equal-cost candidates prefer the threshold closest to 0.5, then the higher threshold. The chosen threshold is frozen before test evaluation. Changing the report's threshold controls explores validation behavior without rewriting the held-out result. Original accuracy cards and boundary replay retain their stated threshold of 0.5.
+After selecting weights, each model chooses its decision threshold using **validation cost only**. The cost is `(fp_cost × FP + fn_cost × FN) / N`; both costs default to 1. The candidates are the distinct validation scores, 0.5, and an all-negative rule. Equal-cost candidates prefer the one closest to 0.5, then the higher threshold. Each score candidate is the highest threshold that makes its validation decisions, so a tie can select a lower threshold even when an equal-cost threshold above 0.5 lies closer to it; [the decision guide](docs/decision-mathematics.md) works through an example. The chosen threshold is frozen before test evaluation. Changing the report's threshold controls explores validation behavior without rewriting the held-out result. Original accuracy cards and boundary replay retain their stated threshold of 0.5.
 
 The decision lab's diagnostics describe the selected model, independent of checkpoint replay. AUC measures ranking, ECE depends on bins, and Brier measures squared probability error; none alone establishes calibrated confidence. Read the worked four-row example before interpreting these metrics on a larger experiment.
 
@@ -138,6 +138,8 @@ The command prints the training mean and scale, standardized input, learned weig
 Saving validates the model before replacing an existing file. Model and pipeline
 saves write a complete temporary file beside the destination before atomic
 replacement, so validation or write failures preserve the previous saved model.
+The saved file keeps an existing file's permissions; a new one follows your
+umask like the other outputs. Saving through a symbolic link replaces its target.
 
 ## Recorded example results
 

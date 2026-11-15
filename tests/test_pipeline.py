@@ -50,6 +50,15 @@ class PipelineStorageTests(unittest.TestCase):
         for name in self.network.parameters:
             np.testing.assert_array_equal(network.parameters[name], self.network.parameters[name])
 
+    def test_nested_list_parameters_and_scaler_save_like_arrays(self):
+        raw = np.array([[0., 0.], [4., -2.], [-3., 7.]])
+        expected = self.network.predict_proba(standardize(raw, self.mean, self.scale))
+        self.network.parameters = {name: value.tolist() for name, value in self.network.parameters.items()}
+        save_pipeline(self.network, self.mean.tolist(), self.scale.tolist(), "moons", self.path)
+        self.assertEqual(json.loads(self.path.read_text(encoding="utf-8")), self.document)
+        network, mean, scale, _ = load_pipeline(self.path)
+        np.testing.assert_array_equal(network.predict_proba(standardize(raw, mean, scale)), expected)
+
     def test_explanation_loader_handles_old_xor_models_without_scaling(self):
         save_model(self.network, self.path)
         network, mean, scale, dataset = load_for_explanation(self.path)

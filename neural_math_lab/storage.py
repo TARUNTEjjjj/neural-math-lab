@@ -1,13 +1,33 @@
 """Readable model files: JSON numbers only, never executable pickle objects."""
 
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
-import tempfile
+import secrets
+import shutil
+import stat
 
 import numpy as np
 
 from .core import Network
+
+
+@contextmanager
+def new_output_directory(path):
+    """Create a run directory that must not exist; remove it if writing fails.
+
+    Runs never overwrite an existing directory, so a partly written one would
+    block a corrected rerun at the same path. Only a directory created here is
+    removed: an existing path makes ``mkdir`` fail before the block runs.
+    """
+    path = Path(path)
+    path.mkdir(parents=True, exist_ok=False)
+    try:
+        yield path
+    except BaseException:
+        shutil.rmtree(path, ignore_errors=True)
+        raise
 
 
 def model_document(network):
@@ -25,18 +45,27 @@ def save_model(network, path):
 
 
 def _write_document(document, path):
-    """Replace only after a complete JSON file has been written beside the target."""
+    """Replace only after a complete JSON file has been written beside the target.
+
+    The result has the permissions an ordinary write gives: an existing file
+    keeps its mode, and a new file follows the umask like the other files a
+    run writes. A symbolic link is followed, so its target is replaced.
+    """
     encoded = json.dumps(document, indent=2, allow_nan=False) + "\n"
-    path = Path(path)
+    path = Path(os.path.realpath(path))
+    try:
+        existing = os.stat(path)
+    except FileNotFoundError:
+        existing = None
     temporary = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
-                                         prefix=".neural-math-lab-", suffix=".tmp",
-                                         delete=False) as stream:
-            temporary = Path(stream.name)
+        descriptor, temporary = _new_temporary_file(path.parent)
+        with open(descriptor, "w", encoding="utf-8") as stream:
             stream.write(encoded)
             stream.flush()
             os.fsync(stream.fileno())
+        if existing is not None and stat.S_ISREG(existing.st_mode):
+            os.chmod(temporary, stat.S_IMODE(existing.st_mode) & 0o777)
         os.replace(temporary, path)
     finally:
         if temporary is not None:
@@ -44,6 +73,22 @@ def _write_document(document, path):
                 temporary.unlink()
             except FileNotFoundError:
                 pass
+
+
+def _new_temporary_file(directory):
+    """Create an empty file in ``directory`` with the mode ``open()`` would use.
+
+    tempfile.mkstemp always uses mode 0600. Requesting 0666 lets the umask
+    (and any default ACL) decide, as it does for every other output file.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+    for _ in range(100):
+        candidate = Path(directory) / ".neural-math-lab-{}.tmp".format(secrets.token_hex(8))
+        try:
+            return os.open(candidate, flags, 0o666), candidate
+        except FileExistsError:
+            continue
+    raise FileExistsError("No unused temporary file name in " + str(directory))
 
 
 def _read_document(path):

@@ -146,6 +146,38 @@ test("raw input gradients agree with independent central differences", () => {
   }
 });
 
+test("saturated outputs and hidden units keep representable raw-input derivatives", () => {
+  // sigmoid(40) and tanh(20) round to exactly 1: p(1-p) and 1-h*h would be 0.
+  const mean = [[1, 2]], scale = [[2, 4]];
+  const ratioNearOne = (actual, expected) => assert.ok(Math.abs(actual / expected - 1) < 1e-14, `${actual} != ${expected}`);
+  for (const b2 of [40, -40]) {
+    const slope = 1 / ((1 + Math.exp(-b2)) * (1 + Math.exp(b2)));
+    const gradient = inputSensitivity({ W1: [[2], [-1]], b1: [[0]], W2: [[3]], b2: [[b2]] }, [1, 2], mean, scale);
+    ratioNearOne(gradient[0], 3 * slope);
+    ratioNearOne(gradient[1], -0.75 * slope);
+  }
+  // tanh(20) is 1, so z = 3 - 3 = 0 and sigmoid' = 1/4.
+  const slope = 1 / Math.cosh(20) ** 2;
+  const gradient = inputSensitivity({ W1: [[2], [-1]], b1: [[20]], W2: [[3]], b2: [[-3]] }, [1, 2], mean, scale);
+  ratioNearOne(gradient[0], 0.75 * slope);
+  ratioNearOne(gradient[1], -0.1875 * slope);
+});
+
+test("hidden units beyond half the float64 range have a zero slope, as in Python", () => {
+  // 2|z1| is not a float64 number here; exp(-|z1|) is 0, the float64 value of tanh'(z1).
+  // Same model and expected values as the Python input_sensitivity test.
+  const hiddenSlope = 1 / Math.cosh(0.6) ** 2;
+  for (const weight of [1e308, -Number.MAX_VALUE]) {
+    const model = { W1: [[weight, 0.5], [0, -1]], b1: [[0, 0.1]], W2: [[3], [-2]], b2: [[0.2]] };
+    const logit = 3 * Math.sign(weight) - 2 * Math.tanh(0.6) + 0.2;
+    const slope = hiddenSlope / ((1 + Math.exp(-logit)) * (1 + Math.exp(logit)));
+    const gradient = inputSensitivity(model, [3, 2], [[1, 2]], [[2, 4]]);
+    for (const [actual, expected] of [[gradient[0], -0.5 * slope], [gradient[1], 0.5 * slope]]) {
+      assert.ok(Math.abs(actual / expected - 1) < 1e-14, `${actual} != ${expected}`);
+    }
+  }
+});
+
 test("sensitivity keeps a large linear estimate visible rather than clipping", () => {
   const model = { W: [[8], [0]], b: [[0]] };
   const r = sensitivityProbe(model, [0, 0], [1, 0], [[0, 0]], [[1, 1]], true);

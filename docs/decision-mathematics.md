@@ -90,6 +90,19 @@ threshold if both distance and cost tie. This is a reproducible convention,
 not a claim that 0.5 has special optimality. The search is exhaustive over the
 validation decision patterns; it cannot promise the best threshold on new data.
 
+The distance is measured at the candidates themselves. A score candidate $s$
+stands for every threshold above the next lower distinct score (or from 0, for
+the lowest score) up to and including $s$: all of them make the same
+validation decisions, and $s$ is the highest. For a rule below 0.5, $s$ is the
+end of that range nearest 0.5; for a rule above 0.5, it is the farthest end. A
+tie between rules on opposite sides of 0.5 can therefore select the lower
+threshold even when an equal-cost threshold above 0.5 lies closer. With labels
+$[1,0,1,0]$, scores $[0.9,0.52,0.3,0.1]$ and equal costs, candidates 0.9 and
+0.3 both cost $1/4$, and the convention selects 0.3. A threshold of 0.53 makes
+the same validation decisions as 0.9 and is only 0.03 from 0.5, but it is not
+a candidate. Validation cost cannot tell such thresholds apart, yet test rows
+with scores between them are classified differently.
+
 Computers represent these numbers in binary floating point: `3 * 0.1` can be
 slightly greater than `0.3`, and `0.5 - 0.2` can differ from `0.8 - 0.5`.
 For selection, costs within `8 × float64 epsilon` (about `1.78e-15`, relative)
@@ -292,6 +305,12 @@ each row and coordinate appropriately. There is **no division by batch size**:
 each row contains the gradient of its own probability, not the gradient of a
 mean loss. Forgetting $1/s_j$ gives sensitivity per standardized unit instead
 of per raw unit. The baseline uses $p(1-p)W_j/s_j$.
+
+`input_sensitivity` evaluates the two slopes from the values before
+activation, $p(1-p)=u/(1+u)^2$ with $u=e^{-|z|}$ and
+$1-h_k^2=(2t/(1+t^2))^2$ with $t=e^{-|a_k|}$, rather than from `P` and `H`.
+Subtracting a $p$ or $h_k^2$ that has rounded to exactly 1 would turn a tiny
+derivative that float64 can still represent into 0.
 
 A positive component means that an infinitesimal increase in that coordinate,
 holding the other one fixed, increases class-1 probability locally. Its units

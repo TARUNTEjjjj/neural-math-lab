@@ -8,17 +8,34 @@ The two raw reports and summary were downloaded unchanged from the workflow
 artifacts. They contain bounded per-request timings, not visitor data or credentials.
 They are retained here because the workflow artifacts expire after seven days.
 
-Recompute the summary against the matching built site:
+Each shard records the response hashes of the site it verified, and the
+summarizer rejects shards whose hashes differ from the build it is given.
+Later commits changed all four measured pages (`/`, `/labs/moons/`,
+`/labs/circles/` and `/learn/optimization-mathematics/`). Against a build of
+the current checkout, both shards therefore fail with "Response hashes do not
+match the current known build." That rejection is correct; it does not mean the
+evidence is invalid. Checking out `244091d` alone does not work either, because
+these reports were committed afterwards.
+
+Recompute the summary against a build of the measured source commit, from the
+root of a current checkout:
 
 ```sh
-npm run build
+mkdir /tmp/neural-math-lab-244091d
+git archive 244091de7fa57c1ec77dbdf1e0ab20159bd39800 | tar -x -C /tmp/neural-math-lab-244091d
+(cd /tmp/neural-math-lab-244091d && npm ci --ignore-scripts && npm run build)
 node scripts/summarize-capacity.cjs \
   benchmarks/distributed-10000/capacity-1/capacity-1.json \
   benchmarks/distributed-10000/capacity-2/capacity-2.json \
+  --expected-directory /tmp/neural-math-lab-244091d/dist \
   --output /tmp/neural-capacity-summary.json
+cmp /tmp/neural-capacity-summary.json \
+  benchmarks/distributed-10000/capacity-summary/capacity-summary.json
 ```
 
-The result must match `capacity-summary/capacity-summary.json` structurally.
+The summarizer must exit with status 0, and `cmp` must report no difference:
+the recomputed summary is byte-for-byte identical to
+`capacity-summary/capacity-summary.json`.
 See [the performance report](../../docs/performance.md) for the workload,
 thresholds, failed local run and limitations. These are two HTTP generators,
 not 10,000 independently rendered browsers.

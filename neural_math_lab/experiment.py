@@ -8,8 +8,8 @@ import math
 
 import numpy as np
 
-from .core import (Network, _binary_loss, _binary_residual, _inputs, _integer,
-                   _matmul, _matrix, _positive, _sigmoid, _targets)
+from .core import (Network, _NETWORK_METHODS, _binary_loss, _binary_residual, _inputs, _integer,
+                   _matmul, _matrix, _positive, _sigmoid, _targets, _uses_methods)
 from .datasets import _bounded_real, fit_standardizer, make_dataset, standardize, stratified_split
 from .diagnostics import _cost, evaluate_binary, select_threshold
 
@@ -37,7 +37,8 @@ class SGD:
     def step(self, parameters, gradients):
         weights, gradients = _checked_updates(parameters, gradients)
         try:
-            with np.errstate(over="raise", invalid="raise"):
+            # Underflow only rounds a tiny step toward zero; it is not overflow.
+            with np.errstate(over="raise", invalid="raise", under="ignore"):
                 updated = {k: weights[k] - self.learning_rate * gradients[k] for k in weights}
         except FloatingPointError as exc:
             raise ValueError("SGD update overflowed; reduce the learning rate") from exc
@@ -87,11 +88,34 @@ def _weight_names(parameters):
     return [name for name in parameters if name.startswith("W")]
 
 
+def _regularized_gradients(network, X, y, l2, cache=None):
+    """The derivatives returned by objective_and_gradients, without its value.
+
+    Training discards the objective's value, so it calls this directly and
+    avoids a forward pass whose result would be thrown away. Given ``cache``,
+    the network's forward pass of X at its current weights, it backpropagates
+    from that pass instead of repeating it. X and y must then be validated, and
+    gradients must be Network's or the baseline's own method (_epoch checks).
+    """
+    gradients = network.gradients(X, y) if cache is None else network._backward(X, y, cache)
+    try:
+        with np.errstate(over="raise", invalid="raise", under="ignore"):
+            for name in _weight_names(network.parameters) if l2 else ():
+                # A float64 copy, as in the objective's penalty below.
+                weight = _matrix(network.parameters[name], "parameter " + name)
+                gradients[name] = gradients[name] + l2 * weight
+    except FloatingPointError as exc:
+        raise ValueError("Regularization overflowed; use smaller weights") from exc
+    if not all(np.isfinite(g).all() for g in gradients.values()):
+        raise ValueError("Regularized objective produced a non-finite value")
+    return gradients
+
+
 def objective_and_gradients(network, X, y, l2=0.001):
     """Mean BCE + (l2 / 2) * squared weight norm; biases are not penalized."""
     l2 = _bounded_real(l2, "l2", 0, 10)
     value = network.loss(X, y)
-    gradients = network.gradients(X, y)
+    gradients = _regularized_gradients(network, X, y, l2)
     try:
         with np.errstate(over="raise", invalid="raise", under="ignore"):
             for name in _weight_names(network.parameters) if l2 else ():
@@ -99,10 +123,9 @@ def objective_and_gradients(network, X, y, l2=0.001):
                 # without replacing the learner's exposed parameter containers.
                 weight = _matrix(network.parameters[name], "parameter " + name)
                 value += 0.5 * l2 * float(np.sum(weight ** 2))
-                gradients[name] = gradients[name] + l2 * weight
     except FloatingPointError as exc:
         raise ValueError("Regularization overflowed; use smaller weights") from exc
-    if not np.isfinite(value) or not all(np.isfinite(g).all() for g in gradients.values()):
+    if not np.isfinite(value):
         raise ValueError("Regularized objective produced a non-finite value")
     return float(value), gradients
 
@@ -122,10 +145,13 @@ def classification_metrics(y, p, loss):
     precision = tp / (tp + fp) if tp + fp else 0.0
     recall = tp / (tp + fn) if tp + fn else 0.0
     f1 = 2 * tp / (2 * tp + fp + fn) if 2 * tp + fp + fn else 0.0
+    # A vanishing score's squared error may underflow to zero, as in evaluate_binary.
+    with np.errstate(under="ignore"):
+        brier = float(np.mean((p - y) ** 2))
     return {
         "loss": loss, "accuracy": float((tp + tn) / len(y)),
         "precision": precision, "recall": recall, "f1": f1,
-        "brier": float(np.mean((p - y) ** 2)),
+        "brier": brier,
         "confusion_matrix": [[tn, fp], [fn, tp]],
         "samples": len(y),
     }
@@ -144,6 +170,11 @@ class _Logistic:
             raise ValueError("Baseline logits are not finite")
         return value
 
+    def forward(self, X):
+        """Logits and probabilities, keyed like the network's output layer."""
+        z2 = self._logits(X)
+        return {"z2": z2, "p": _sigmoid(z2)}
+
     def predict_proba(self, X):
         return _sigmoid(self._logits(X))
 
@@ -155,9 +186,18 @@ class _Logistic:
     def gradients(self, X, y):
         X = _inputs(X)
         y = _targets(y, len(X))
+        return self._backward(X, y, {"z2": self._logits(X)})
+
+    def _backward(self, X, y, cache):
+        """Derivatives from validated X and y and this model's logits for X."""
         with np.errstate(under="ignore"):
-            dz = _binary_residual(self._logits(X), y) / len(X)
+            dz = _binary_residual(cache["z2"], y) / len(X)
         return {"W": _matmul(X.T, dz), "b": dz.sum(axis=0, keepdims=True)}
+
+
+# The baseline's own versions of the methods that _epoch computes from one
+# forward pass, captured at definition like core._NETWORK_METHODS.
+_LOGISTIC_METHODS = {name: _Logistic.__dict__[name] for name in _NETWORK_METHODS}
 
 
 def _snapshot(model, epoch, row):
@@ -165,37 +205,81 @@ def _snapshot(model, epoch, row):
             "train_loss": row["train_loss"], "val_loss": row["val_loss"]}
 
 
+def _loss_and_accuracy(cache, y):
+    """Mean BCE and accuracy at threshold 0.5 from one forward pass's output."""
+    y = _targets(y, len(cache["p"]))
+    return _binary_loss(cache["z2"], y), float(np.mean((cache["p"] >= 0.5) == y))
+
+
+def _epoch(model, optimizer, rng, epoch, X_train, y_train, X_val, y_val, config):
+    """Apply one epoch of mini-batch updates (none at epoch 0), then measure.
+
+    X_train and y_train must already be validated.
+    """
+    if epoch:
+        order = rng.permutation(len(X_train))
+        for offset in range(0, len(order), config["batch_size"]):
+            ids = order[offset:offset + config["batch_size"]]
+            gradients = _regularized_gradients(model, X_train[ids], y_train[ids], config["l2"])
+            optimizer.step(model.parameters, gradients)
+    # predict_proba, loss and gradients each repeat the model's forward pass.
+    # While they are Network's or the baseline's own, one pass of the training
+    # rows at the updated weights gives the full-batch gradient, for its norm,
+    # and the training loss and accuracy. A replacement of any of them, such
+    # as a subclass override, is called instead, as in the updates above.
+    own = _LOGISTIC_METHODS if isinstance(model, _Logistic) else _NETWORK_METHODS
+    single_pass = _uses_methods(model, own)
+    train_cache = model.forward(X_train) if single_pass else None
+    full_gradients = _regularized_gradients(model, X_train, y_train, config["l2"], train_cache)
+    # Squares of tiny derivatives may underflow; only overflow is an error.
+    with np.errstate(over="raise", invalid="raise", under="ignore"):
+        try:
+            gradient_norm = float(np.sqrt(sum(float(np.sum(g ** 2)) for g in full_gradients.values())))
+        except FloatingPointError as exc:
+            raise ValueError("Gradient norm overflowed") from exc
+    if not np.isfinite(gradient_norm):
+        raise ValueError("Gradient norm overflowed")
+    if single_pass:
+        train_loss, train_accuracy = _loss_and_accuracy(train_cache, y_train)
+        val_loss, val_accuracy = _loss_and_accuracy(model.forward(X_val), y_val)
+    else:
+        train_loss, val_loss = model.loss(X_train, y_train), model.loss(X_val, y_val)
+        train_accuracy = float(np.mean((model.predict_proba(X_train) >= 0.5) == y_train))
+        val_accuracy = float(np.mean((model.predict_proba(X_val) >= 0.5) == y_val))
+    return {"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss,
+            "train_accuracy": train_accuracy, "val_accuracy": val_accuracy,
+            "gradient_norm": gradient_norm}
+
+
 def _fit(model, X_train, y_train, X_val, y_val, config, seed, snapshots=True):
     """No test data enters this function, including preprocessing or stopping."""
     optimizer = Adam(config["learning_rate"]) if config["optimizer"] == "adam" else SGD(config["learning_rate"])
     rng = np.random.default_rng(seed)
+    # Validated once, because each epoch backpropagates from its own forward
+    # pass of these rows (see _epoch).
+    X_train = _inputs(X_train)
+    y_train = _targets(y_train, len(X_train))
     history, checkpoints = [], []
     best_loss, significant_anchor = math.inf, math.inf
     best_epoch, best_weights, stale = 0, None, 0
     interval = max(1, math.ceil(config["epochs"] / 58))
     stop_reason = "epoch_limit"
     for epoch in range(config["epochs"] + 1):
-        if epoch:
-            order = rng.permutation(len(X_train))
-            for offset in range(0, len(order), config["batch_size"]):
-                ids = order[offset:offset + config["batch_size"]]
-                _, gradients = objective_and_gradients(model, X_train[ids], y_train[ids], config["l2"])
-                optimizer.step(model.parameters, gradients)
-        _, full_gradients = objective_and_gradients(model, X_train, y_train, config["l2"])
-        with np.errstate(over="raise", invalid="raise"):
-            try:
-                gradient_norm = float(np.sqrt(sum(float(np.sum(g ** 2)) for g in full_gradients.values())))
-            except FloatingPointError as exc:
-                raise ValueError("Gradient norm overflowed") from exc
-        if not np.isfinite(gradient_norm):
-            raise ValueError("Gradient norm overflowed")
-        row = {
-            "epoch": epoch, "train_loss": model.loss(X_train, y_train),
-            "val_loss": model.loss(X_val, y_val),
-            "train_accuracy": float(np.mean((model.predict_proba(X_train) >= 0.5) == y_train)),
-            "val_accuracy": float(np.mean((model.predict_proba(X_val) >= 0.5) == y_val)),
-            "gradient_norm": gradient_norm,
-        }
+        try:
+            row = _epoch(model, optimizer, rng, epoch, X_train, y_train, X_val, y_val, config)
+        except ValueError as exc:
+            if not epoch:
+                raise
+            # Inputs are validated and standardized and the initial weights are
+            # small, so an overflow after updates means the steps diverged. Name
+            # the settings a learner can change, not the weights. Each SGD update
+            # also scales the weights by (1 - learning_rate * l2); Adam's step
+            # size does not grow with l2.
+            advice = "the learning rate"
+            if config["optimizer"] == "sgd" and config["l2"]:
+                advice += " or the L2 coefficient"
+            raise ValueError("Training diverged at epoch {}: the weights or derivatives "
+                             "overflowed; reduce {}".format(epoch, advice)) from exc
         history.append(row)
         # Always restore the actual lowest validation BCE, independently of the
         # significant-improvement threshold used to reset the patience counter.

@@ -864,14 +864,15 @@ b2 =
 [[2.523474]]</pre></details></section>
 <section><div class="eyebrow">03 / HOW LEARNING HAPPENS</div><h2>The chain rule supplies the direction.</h2><pre>Z1 = X @ W1 + b1       H = tanh(Z1)
 Z2 = H @ W2 + b2       P = sigmoid(Z2)
-L  = mean(logaddexp(0, Z2) - Y * Z2)
+L  = mean(logaddexp(0, where(Y == 1, -Z2, Z2)))
 
-dZ2 = (P - Y) / N
+dZ2 = where(Y == 1, -sigmoid(-Z2), sigmoid(Z2)) / N
 dW2 = H.T @ dZ2        db2 = sum(dZ2, axis=0)
-dZ1 = (dZ2 @ W2.T) * (1 - H**2)
+E   = exp(-abs(Z1))
+dZ1 = (dZ2 @ W2.T) * (2 * E / (1 + E * E))**2
 dW1 = X.T @ dZ1        db1 = sum(dZ1, axis=0)
 
-parameter = parameter - learning_rate * gradient</pre><p>N is the number of examples, four here. A positive derivative means increasing that parameter locally increases the loss; subtracting the gradient takes a small step in the opposite direction. The learning rate determines the step size.</p><p>Read <code>docs/mathematics.md</code> in the repository for the full derivation, a worked numerical example, and the reason one linear classifier cannot solve XOR. Then try <code>docs/exercises.md</code>.</p></section>
+parameter = parameter - learning_rate * gradient</pre><p>N is the number of examples, four here. In exact arithmetic the loss equals <code>mean(logaddexp(0, Z2) - Y * Z2)</code>, <code>dZ2</code> equals <code>(P - Y) / N</code>, and <code>(2 * E / (1 + E * E))**2</code> equals <code>1 - H**2</code>. The code evaluates these forms from Z2 and Z1, so a P that rounds to exactly 1 or an H that rounds to ±1 cannot turn a tiny loss or derivative into 0. A positive derivative means increasing that parameter locally increases the loss; subtracting the gradient takes a small step in the opposite direction. The learning rate determines the step size.</p><p>Read <code>docs/mathematics.md</code> in the repository for the full derivation, a worked numerical example, and the reason one linear classifier cannot solve XOR. Then try <code>docs/exercises.md</code>.</p></section>
 <section><div class="eyebrow">04 / REPRODUCE AND EXPERIMENT</div><h2>Change one setting at a time.</h2><pre>python -m neural_math_lab train --epochs 4000 --learning-rate 0.5 --hidden 4 --seed 7 --output runs/reproduction</pre><p>Use a new output directory for each run. Compare loss curves with learning rates 0.05 and 0.5, or change the number of hidden neurons. Failed learning is useful evidence too.</p><details><summary>Run configuration and environment</summary><pre>{
   &quot;config&quot;: {
     &quot;epochs&quot;: 4000,

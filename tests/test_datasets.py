@@ -120,6 +120,29 @@ class StandardizationTests(unittest.TestCase):
         np.testing.assert_array_equal(scale, before[1])
         np.testing.assert_array_equal(training, before[2])
 
+    def test_tiny_coordinates_standardize_identically_under_strict_numpy_settings(self):
+        # Squares of tiny deviations and tiny quotients underflow: that is
+        # rounding, not coordinates that are too large.
+        for training in ([[0., 0.], [1e-170, 1e-170]], [[1., 1e-160], [3., -1e-160]]):
+            with self.subTest(training=training):
+                mean, scale = fit_standardizer(training)
+                expected = standardize(training, mean, scale)
+                with np.errstate(all="raise"):
+                    strict_mean, strict_scale = fit_standardizer(training)
+                    actual = standardize(training, strict_mean, strict_scale)
+                np.testing.assert_array_equal(strict_mean, mean)
+                np.testing.assert_array_equal(strict_scale, scale)
+                np.testing.assert_array_equal(actual, expected)
+        with np.errstate(all="raise"):
+            actual = standardize([[1e-310, -1e-310]], [[0., 0.]], [[1e10, 1e10]])
+        np.testing.assert_array_equal(actual, [[1e-310 / 1e10, -1e-310 / 1e10]])
+        for settings in ({}, {"all": "raise"}):
+            with self.subTest(settings=settings), np.errstate(**settings):
+                with self.assertRaisesRegex(ValueError, "too large to standardize"):
+                    fit_standardizer([[1e308, 0.], [-1e308, 1.]])
+                with self.assertRaisesRegex(ValueError, "too large to standardize"):
+                    standardize([[1e308, 0.]], [[-1e308, 0.]], [[1., 1.]])
+
     def test_invalid_standardization_inputs_are_rejected(self):
         for X in (np.empty((0, 2)), np.ones((4, 3)), [[np.inf, 1]], [[np.nan, 1]]):
             with self.subTest(X=X), self.assertRaises(ValueError):

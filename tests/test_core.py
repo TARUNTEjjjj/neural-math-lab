@@ -6,6 +6,8 @@ The finite-difference oracle below deliberately does not call gradient_check.
 
 import math
 import unittest
+from contextlib import nullcontext
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -134,6 +136,50 @@ class NetworkMathTests(unittest.TestCase):
                 for name, actual in net.gradients(X, y).items():
                     np.testing.assert_allclose(actual, expected[name], rtol=1e-14, atol=0)
 
+    def test_every_derivative_through_a_saturated_hidden_unit_matches_its_closed_form(self):
+        # tanh(+-20) rounds to exactly +-1, so 1 - h**2 would give 0. The true
+        # slope 1/cosh(20)**2 is about 1.7e-17, a normal float64 number.
+        net = Network(hidden=1, seed=7)
+        net.parameters["W1"][:] = 0
+        net.parameters["W2"][:] = 1
+        net.parameters["b2"][:] = 0
+        X, y = np.array([[1., -2.]]), np.array([[1.]])
+        for pre_activation in (20., -20.):
+            net.parameters["b1"][:] = pre_activation
+            hidden = math.tanh(pre_activation)
+            slope = 1 / math.cosh(pre_activation) ** 2
+            residual = -1 / (1 + math.exp(hidden))  # sigmoid(z2) - 1 at z2 = hidden
+            expected = {"b2": [[residual]], "W2": [[hidden * residual]],
+                        "b1": [[slope * residual]],
+                        "W1": [[slope * residual], [-2 * slope * residual]]}
+            with self.subTest(pre_activation=pre_activation), np.errstate(all="raise"):
+                self.assertEqual(hidden * hidden, 1.0)
+                for name, actual in net.gradients(X, y).items():
+                    np.testing.assert_allclose(actual, expected[name], rtol=1e-14, atol=0, err_msg=name)
+
+    def test_hidden_units_beyond_half_the_float64_range_have_zero_slope(self):
+        # For a finite pre-activation above about 8.99e307 in size, 2|z1| is
+        # not a float64 number, so a slope formula that doubled z1 would
+        # overflow. The slope itself is 0 in float64, as 1 - h**2 gives: a valid
+        # result, not an overflow error. The other hidden unit is unaffected.
+        net = Network(hidden=2, seed=7)
+        net.parameters["W1"][:] = [[0., .5], [0., .25]]
+        net.parameters["b1"][:] = [[0., .1]]
+        net.parameters["W2"][:] = [[3.], [-2.]]
+        net.parameters["b2"][:] = .2
+        X, y = np.array([[1., -2.]]), np.array([[1.]])
+        for weight in (9e307, -1.5e308, np.finfo(np.float64).max):
+            net.parameters["W1"][0, 0] = weight  # z1 = [weight, 0.1]
+            hidden = [math.copysign(1., weight), math.tanh(.1)]
+            residual = -1 / (1 + math.exp(3 * hidden[0] - 2 * hidden[1] + .2))
+            dz1 = [0., -2 * residual / math.cosh(.1) ** 2]
+            expected = {"b2": [[residual]], "W2": [[hidden[0] * residual], [hidden[1] * residual]],
+                        "b1": [dz1], "W1": [dz1, [-2 * dz1[0], -2 * dz1[1]]]}
+            for settings in ({}, {"all": "raise"}):
+                with self.subTest(weight=weight, errors=settings), np.errstate(**settings):
+                    for name, actual in net.gradients(X, y).items():
+                        np.testing.assert_allclose(actual, expected[name], rtol=1e-14, atol=0, err_msg=name)
+
     def test_gradient_checker_restores_every_parameter(self):
         net = Network(hidden=3, seed=11)
         before = {name: p.copy() for name, p in net.parameters.items()}
@@ -165,6 +211,67 @@ class NetworkMathTests(unittest.TestCase):
         for name in before:
             self.assertIs(net.parameters[name], originals[name])
             np.testing.assert_array_equal(net.parameters[name], before[name])
+
+    def test_gradient_checker_differences_come_from_perturbed_losses(self):
+        # With backpropagation replaced by zeros, every reported error must be the
+        # size of an independently computed central difference. A checker that
+        # compared backpropagation with itself would report zero instead.
+        net = Network(hidden=3, seed=11)
+        epsilon = 1e-6
+        expected = {}
+        for name, parameter in net.parameters.items():
+            numeric = np.zeros_like(parameter)
+            for index in np.ndindex(parameter.shape):
+                original = parameter[index]
+                try:
+                    parameter[index] = original + epsilon
+                    plus = net.loss(self.X, self.y)
+                    parameter[index] = original - epsilon
+                    minus = net.loss(self.X, self.y)
+                    numeric[index] = (plus - minus) / (2 * epsilon)
+                finally:
+                    parameter[index] = original
+            expected[name] = float(np.max(np.abs(numeric)))
+        zeros = {name: np.zeros_like(parameter) for name, parameter in net.parameters.items()}
+        with patch.object(net, "gradients", return_value=zeros):
+            result = gradient_check(net, self.X, self.y, epsilon=epsilon)
+        for name, size in expected.items():
+            with self.subTest(parameter=name):
+                self.assertGreater(size, 1e-4)
+                self.assertAlmostEqual(result["per_parameter"][name]["max_abs_error"], size, delta=1e-12)
+                self.assertEqual(result["per_parameter"][name]["max_relative_error"], 1.0)
+        self.assertAlmostEqual(result["max_abs_error"], max(expected.values()), delta=1e-12)
+
+    def test_gradient_checker_flags_and_locates_a_wrong_derivative(self):
+        net = Network(hidden=3, seed=11)
+        correct = net.gradients(self.X, self.y)
+        wrong = dict(correct, W1=2 * correct["W1"])
+        with patch.object(net, "gradients", return_value=wrong):
+            result = gradient_check(net, self.X, self.y)
+        errors = result["per_parameter"]
+        # A doubled derivative misses the finite difference by the derivative
+        # itself, a relative error of |2g - g| / (|2g| + |g|) = 1/3.
+        self.assertAlmostEqual(errors["W1"]["max_abs_error"], float(np.max(np.abs(correct["W1"]))), delta=1e-8)
+        self.assertAlmostEqual(errors["W1"]["max_relative_error"], 1 / 3, places=6)
+        for name in ("b1", "W2", "b2"):
+            self.assertLess(errors[name]["max_abs_error"], 1e-8, name)
+        self.assertGreater(result["max_abs_error"], 1e-3)
+
+    def test_gradient_checker_treats_vanishing_errors_as_rounding_under_strict_numpy_errors(self):
+        # At b2 = 720 the loss and its derivative are about 2e-313. The tiny
+        # absolute error divided by the 1e-8 floor underflows (about 5e-312
+        # here), which is rounding, not a failed check.
+        net = Network(hidden=2, seed=7)
+        net.parameters["W1"][:] = 0
+        net.parameters["W2"][:] = 0
+        net.parameters["b2"][:] = 720.0
+        X, y = np.zeros((1, 2)), np.array([[1.0]])
+        expected = gradient_check(net, X, y)
+        with np.errstate(all="raise"):
+            actual = gradient_check(net, X, y)
+        self.assertEqual(actual, expected)
+        self.assertLess(actual["max_abs_error"], 1e-300)
+        self.assertLess(actual["max_relative_error"], 1e-300)
 
     def test_same_seed_reproduces_parameters_without_using_global_rng(self):
         np.random.seed(123)
@@ -247,6 +354,77 @@ class TrainingTests(unittest.TestCase):
         self.assertEqual(history[-1]["accuracy"], accuracy)
         self.assertTrue(all(math.isfinite(r["loss"]) and 0 <= r["accuracy"] <= 1 for r in history))
 
+    def test_each_update_records_metrics_from_a_single_forward_pass(self):
+        X, y = xor_data()
+        calls = []
+        forward = Network.forward
+
+        def counted(network, inputs):
+            calls.append(len(inputs))
+            return forward(network, inputs)
+
+        with patch.object(Network, "forward", counted):
+            train(Network(seed=7), X, y, epochs=3)
+        # One pass per recorded epoch gives its loss and accuracy, and the
+        # following update backpropagates from that same pass.
+        self.assertEqual(calls, [4] * (3 + 1))
+
+    def test_training_steps_along_a_replaced_gradients_method(self):
+        # A learner may replace Network.gradients, for example to see what a
+        # wrong derivative does. train() must then step along the replacement
+        # instead of backpropagating from its own forward pass. This one
+        # returns zeros, so no update may change the network.
+        X, y = xor_data()
+
+        def still(network, X, y):
+            return {name: np.zeros_like(value) for name, value in network.parameters.items()}
+
+        class Still(Network):
+            gradients = still
+
+        attribute = Network(seed=7)
+        attribute.gradients = lambda X, y: still(attribute, X, y)
+        cases = (("subclass", Still(seed=7), nullcontext()),
+                 ("instance attribute", attribute, nullcontext()),
+                 ("patched class", Network(seed=7), patch.object(Network, "gradients", still)))
+        for case, network, replacement in cases:
+            initial = {name: value.copy() for name, value in network.parameters.items()}
+            with self.subTest(case=case), replacement:
+                history = train(network, X, y, epochs=3)
+                self.assertEqual(history, [dict(history[0], epoch=epoch) for epoch in range(4)])
+                for name, value in initial.items():
+                    np.testing.assert_array_equal(network.parameters[name], value)
+
+    def test_recorded_metrics_come_from_a_replaced_loss_or_predict_proba(self):
+        # The history records loss and the accuracy of predict_proba. When a
+        # subclass replaces either method, train() must record what the
+        # replacement returns, not what its shared forward pass gives.
+        X, y = xor_data()
+        expected = train(Network(seed=7), X, y, epochs=3)
+
+        class Shifted(Network):
+            def loss(self, X, y):
+                return super().loss(X, y) + 1.0
+
+        class Exact(Network):
+            def predict_proba(self, X):
+                # The XOR truth table itself, whatever the weights.
+                return np.abs(X[:, :1] - X[:, 1:])
+
+        self.assertEqual(train(Shifted(seed=7), X, y, epochs=3),
+                         [dict(row, loss=row["loss"] + 1.0) for row in expected])
+        self.assertEqual(train(Exact(seed=7), X, y, epochs=3),
+                         [dict(row, accuracy=1.0) for row in expected])
+
+    def test_training_needs_only_the_public_methods(self):
+        # train() calls predict_proba, loss, gradients and step. An object that
+        # has only these, here bound to a network, trains exactly like it.
+        X, y = xor_data()
+        network = Network(seed=7)
+        public = SimpleNamespace(predict_proba=network.predict_proba, loss=network.loss,
+                                 gradients=network.gradients, step=network.step)
+        self.assertEqual(train(public, X, y, epochs=3), train(Network(seed=7), X, y, epochs=3))
+
     def test_training_is_reproducible_for_a_fixed_seed(self):
         X, y = xor_data()
         a, b = Network(seed=7), Network(seed=7)
@@ -255,6 +433,45 @@ class TrainingTests(unittest.TestCase):
         self.assertEqual(history_a, history_b)
         for name in a.parameters:
             np.testing.assert_array_equal(a.parameters[name], b.parameters[name])
+
+    def test_vanishing_updates_are_rounding_not_overflow_under_strict_numpy_errors(self):
+        # A correctly classified saturated logit has a tiny representable
+        # derivative (about 2e-313 here). Its update underflows: it rounds to a
+        # subnormal step or to no change. A smaller rate makes it smaller still.
+        X, y = np.zeros((1, 2)), np.array([[1.0]])
+
+        def saturated():
+            net = Network(hidden=2, seed=7)
+            net.parameters["W1"][:] = 0
+            net.parameters["W2"][:] = 0
+            net.parameters["b2"][:] = 720.0
+            return net
+
+        for rate in (0.5, 0.05):
+            with self.subTest(learning_rate=rate):
+                expected = train(saturated(), X, y, epochs=2, learning_rate=rate)
+                net = saturated()
+                with np.errstate(all="raise"):
+                    history = train(net, X, y, epochs=2, learning_rate=rate)
+                self.assertEqual(history, expected)
+                self.assertGreater(history[-1]["loss"], 0)
+                self.assertEqual(net.parameters["b2"][0, 0], 720.0)
+        net = Network(hidden=3, seed=11)
+        X, y = xor_data()
+        gradients = net.gradients(X, y)
+        expected = {name: value - 1e-310 * gradients[name] for name, value in net.parameters.items()}
+        with np.errstate(all="raise"):
+            net.step(gradients, learning_rate=1e-310)
+        for name in expected:
+            np.testing.assert_array_equal(net.parameters[name], expected[name])
+        # Some tanh implementations flag a subnormal argument as underflow.
+        net.parameters["W1"][:] = 0
+        net.parameters["b1"][:] = 1e-310
+        expected = net.forward(X)
+        with np.errstate(all="raise"):
+            actual = net.forward(X)
+        for name in expected:
+            np.testing.assert_array_equal(actual[name], expected[name])
 
     def test_xor_is_learned_for_documented_fixed_seeds(self):
         # These are training-set checks on all four truth-table rows, not a
