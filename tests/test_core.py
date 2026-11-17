@@ -573,9 +573,30 @@ class ValidationTests(unittest.TestCase):
             np.testing.assert_array_equal(self.net.parameters[name], before[name])
 
     def test_gradient_checker_rejects_invalid_step_sizes(self):
-        for epsilon in (0, -1e-5, np.nan, np.inf, True):
+        for epsilon in (0, -1e-5, np.nan, np.inf, True, 1e308):
             with self.subTest(epsilon=epsilon), self.assertRaises(ValueError):
                 gradient_check(self.net, self.X, self.y, epsilon=epsilon)
+
+    def test_gradient_checker_rejects_unrepresentable_steps_and_preserves_state(self):
+        # This used to compare a parameter with itself, reporting a derivative
+        # disagreement even though the finite-difference experiment never ran.
+        parameters = self.net.parameters
+        originals = dict(parameters)
+        before = {name: value.copy() for name, value in parameters.items()}
+        with self.assertRaisesRegex(ValueError, "too small to perturb"):
+            gradient_check(self.net, self.X, self.y, epsilon=1e-30)
+        self.assertIs(self.net.parameters, parameters)
+        for name in before:
+            self.assertIs(self.net.parameters[name], originals[name])
+            np.testing.assert_array_equal(self.net.parameters[name], before[name])
+
+    def test_gradient_checker_rejects_nonfinite_loss_differences_and_preserves_state(self):
+        originals = dict(self.net.parameters)
+        with patch.object(self.net, "loss", side_effect=[1e308, -1e308]):
+            with self.assertRaisesRegex(ValueError, "non-finite derivative"):
+                gradient_check(self.net, self.X, self.y)
+        for name, value in originals.items():
+            self.assertIs(self.net.parameters[name], value)
 
 
 if __name__ == "__main__":
