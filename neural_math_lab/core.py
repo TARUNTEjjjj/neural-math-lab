@@ -303,6 +303,8 @@ def gradient_check(network: Network, X, y, epsilon: float = 1e-5) -> dict:
     inspect absolute errors too when the derivative is close to zero.
     """
     epsilon = _positive(epsilon, "epsilon")
+    if not np.isfinite(2.0 * epsilon):
+        raise ValueError("epsilon is too large for finite differences")
     X = _inputs(X)
     y = _targets(y, len(X))
     analytic = network.gradients(X, y)
@@ -315,13 +317,21 @@ def gradient_check(network: Network, X, y, epsilon: float = 1e-5) -> dict:
         for name in PARAMETER_NAMES:
             numeric = np.empty_like(temporary[name])
             for index in np.ndindex(temporary[name].shape):
-                value = temporary[name][index]
+                value = float(temporary[name][index])
                 try:
-                    temporary[name][index] = value + epsilon
+                    upper, lower = value + epsilon, value - epsilon
+                    if not np.isfinite(upper) or not np.isfinite(lower):
+                        raise ValueError("Finite-difference perturbation overflowed; reduce epsilon or weights")
+                    if upper == value or lower == value:
+                        raise ValueError("epsilon is too small to perturb every parameter; increase epsilon or reduce weights")
+                    temporary[name][index] = upper
                     plus = network.loss(X, y)
-                    temporary[name][index] = value - epsilon
+                    temporary[name][index] = lower
                     minus = network.loss(X, y)
-                    numeric[index] = (plus - minus) / (2.0 * epsilon)
+                    difference = (plus - minus) / (2.0 * epsilon)
+                    if not np.isfinite(difference):
+                        raise ValueError("Finite differences produced a non-finite derivative; change epsilon or weights")
+                    numeric[index] = difference
                 finally:
                     temporary[name][index] = value
             absolute = np.abs(analytic[name] - numeric)
