@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "project": "neural-math-lab",
   "title": "Neural Math Lab resources",
-  "fetchedAt": "2026-11-17T12:22:42.246Z",
-  "attemptedAt": "2026-11-17T12:22:29.959Z",
+  "fetchedAt": "2026-11-18T12:08:52.631Z",
+  "attemptedAt": "2026-11-18T12:08:40.198Z",
   "status": "live",
   "errors": [],
   "excludedSeeds": [],
@@ -42,7 +42,7 @@
       "license": "MIT",
       "category": "foundations",
       "sourceQuery": "topic:neural-network topic:from-scratch",
-      "fetchedAt": "2026-11-17T12:22:30.287Z",
+      "fetchedAt": "2026-11-18T12:08:40.597Z",
       "provenance": "github",
       "stale": false,
       "score": 59.68,
@@ -54,17 +54,17 @@
       "url": "https://github.com/karpathy/micrograd",
       "description": "A tiny scalar-valued autograd engine and a neural net library on top of it with PyTorch-like API",
       "topics": [],
-      "stars": 18978,
-      "forks": 3020,
+      "stars": 19005,
+      "forks": 3021,
       "pushedAt": "2026-08-03T04:04:05.000Z",
       "license": "MIT",
       "category": "foundations",
       "sourceQuery": "repo:karpathy/micrograd",
-      "fetchedAt": "2026-11-17T12:22:32.646Z",
+      "fetchedAt": "2026-11-18T12:08:42.935Z",
       "provenance": "github",
       "stale": false,
-      "score": 49.14,
-      "reason": "Neural network foundations resource; 18978 GitHub stars."
+      "score": 49.12,
+      "reason": "Neural network foundations resource; 19005 GitHub stars."
     },
     {
       "id": 152166877,
@@ -91,17 +91,17 @@
         "reinforcement-learning",
         "tensorflow"
       ],
-      "stars": 30064,
-      "forks": 5162,
+      "stars": 30077,
+      "forks": 5163,
       "pushedAt": "2024-08-18T08:02:36.000Z",
       "license": null,
       "category": "foundations",
       "sourceQuery": "repo:d2l-ai/d2l-en",
-      "fetchedAt": "2026-11-17T12:22:35.012Z",
+      "fetchedAt": "2026-11-18T12:08:45.320Z",
       "provenance": "github",
       "stale": false,
       "score": 25.47,
-      "reason": "Neural network foundations resource; 30064 GitHub stars."
+      "reason": "Neural network foundations resource; 30077 GitHub stars."
     },
     {
       "id": 250213286,
@@ -110,9 +110,11 @@
       "description": "🤗 The largest hub of ready-to-use datasets for AI models with fast, easy-to-use and efficient data manipulation tools",
       "topics": [
         "ai",
+        "arrow",
         "artificial-intelligence",
+        "audio",
+        "bioinformatics",
         "computer-vision",
-        "dataset-hub",
         "datasets",
         "deep-learning",
         "huggingface",
@@ -123,20 +125,19 @@
         "numpy",
         "pandas",
         "pytorch",
-        "speech",
-        "tensorflow"
+        "robotics"
       ],
-      "stars": 22151,
-      "forks": 3652,
-      "pushedAt": "2026-11-17T01:03:20.000Z",
+      "stars": 22158,
+      "forks": 3654,
+      "pushedAt": "2026-11-17T16:04:28.000Z",
       "license": "Apache-2.0",
       "category": "datasets",
       "sourceQuery": "topic:machine-learning topic:datasets language:Python",
-      "fetchedAt": "2026-11-17T12:22:37.517Z",
+      "fetchedAt": "2026-11-18T12:08:47.872Z",
       "provenance": "github",
       "stale": false,
-      "score": 76.71,
-      "reason": "Datasets and scientific tools resource; 22151 GitHub stars."
+      "score": 76.7,
+      "reason": "Datasets and scientific tools resource; 22158 GitHub stars."
     },
     {
       "id": 132975485,
@@ -165,17 +166,17 @@
         "outlier-detection",
         "weak-supervision"
       ],
-      "stars": 11748,
-      "forks": 944,
+      "stars": 11752,
+      "forks": 945,
       "pushedAt": "2026-01-13T17:39:04.000Z",
       "license": "Apache-2.0",
       "category": "datasets",
       "sourceQuery": "topic:machine-learning topic:datasets language:Python",
-      "fetchedAt": "2026-11-17T12:22:37.517Z",
+      "fetchedAt": "2026-11-18T12:08:47.872Z",
       "provenance": "github",
       "stale": false,
-      "score": 55.78,
-      "reason": "Datasets and scientific tools resource; 11748 GitHub stars."
+      "score": 55.77,
+      "reason": "Datasets and scientific tools resource; 11752 GitHub stars."
     },
     {
       "id": 147733573,
@@ -206,10 +207,10 @@
       "license": null,
       "category": "datasets",
       "sourceQuery": "topic:machine-learning topic:datasets language:Python",
-      "fetchedAt": "2026-11-17T12:22:37.517Z",
+      "fetchedAt": "2026-11-18T12:08:47.872Z",
       "provenance": "github",
       "stale": false,
-      "score": 53.52,
+      "score": 53.51,
       "reason": "Datasets and scientific tools resource; 1912 GitHub stars."
     },
     {
@@ -221,17 +222,17 @@
         "numpy",
         "python"
       ],
-      "stars": 33393,
-      "forks": 13107,
-      "pushedAt": "2026-11-17T10:56:50.000Z",
+      "stars": 33410,
+      "forks": 13106,
+      "pushedAt": "2026-11-18T00:22:06.000Z",
       "license": null,
       "category": "datasets",
       "sourceQuery": "repo:numpy/numpy",
-      "fetchedAt": "2026-11-17T12:22:42.246Z",
+      "fetchedAt": "2026-11-18T12:08:52.631Z",
       "provenance": "github",
       "stale": false,
-      "score": 47.62,
-      "reason": "Datasets and scientific tools resource; 33393 GitHub stars."
+      "score": 47.61,
+      "reason": "Datasets and scientific tools resource; 33410 GitHub stars."
     },
     {
       "id": 148221325,
@@ -253,10 +254,10 @@
       "license": "Apache-2.0",
       "category": "datasets",
       "sourceQuery": "topic:machine-learning topic:datasets language:Python",
-      "fetchedAt": "2026-11-17T12:22:37.517Z",
+      "fetchedAt": "2026-11-18T12:08:47.872Z",
       "provenance": "github",
       "stale": false,
-      "score": 43.21,
+      "score": 43.19,
       "reason": "Datasets and scientific tools resource; 4610 GitHub stars."
     },
     {
@@ -278,17 +279,17 @@
         "vue",
         "vuejs"
       ],
-      "stars": 10809,
-      "forks": 1820,
+      "stars": 10811,
+      "forks": 1818,
       "pushedAt": "2026-04-14T21:16:25.000Z",
       "license": "MIT",
       "category": "datasets",
       "sourceQuery": "topic:machine-learning topic:datasets language:Python",
-      "fetchedAt": "2026-11-17T12:22:37.517Z",
+      "fetchedAt": "2026-11-18T12:08:47.872Z",
       "provenance": "github",
       "stale": false,
-      "score": 41.44,
-      "reason": "Datasets and scientific tools resource; 10809 GitHub stars."
+      "score": 41.43,
+      "reason": "Datasets and scientific tools resource; 10811 GitHub stars."
     },
     {
       "id": 389571254,
@@ -304,15 +305,15 @@
         "nlp"
       ],
       "stars": 910,
-      "forks": 143,
+      "forks": 144,
       "pushedAt": "2026-11-16T18:30:06.000Z",
       "license": "Apache-2.0",
       "category": "datasets",
       "sourceQuery": "topic:machine-learning topic:datasets language:Python",
-      "fetchedAt": "2026-11-17T12:22:37.517Z",
+      "fetchedAt": "2026-11-18T12:08:47.872Z",
       "provenance": "github",
       "stale": false,
-      "score": 39.78,
+      "score": 39.75,
       "reason": "Datasets and scientific tools resource; 910 GitHub stars."
     },
     {
@@ -327,17 +328,17 @@
         "python",
         "statistics"
       ],
-      "stars": 68211,
-      "forks": 27688,
-      "pushedAt": "2026-11-17T10:24:38.000Z",
+      "stars": 68232,
+      "forks": 27686,
+      "pushedAt": "2026-11-18T11:30:45.000Z",
       "license": "BSD-3-Clause",
       "category": "datasets",
       "sourceQuery": "repo:scikit-learn/scikit-learn",
-      "fetchedAt": "2026-11-17T12:22:39.890Z",
+      "fetchedAt": "2026-11-18T12:08:50.274Z",
       "provenance": "github",
       "stale": false,
       "score": 34.17,
-      "reason": "Datasets and scientific tools resource; 68211 GitHub stars."
+      "reason": "Datasets and scientific tools resource; 68232 GitHub stars."
     },
     {
       "id": 174281291,
@@ -355,7 +356,7 @@
       "license": "Apache-2.0",
       "category": "datasets",
       "sourceQuery": "topic:machine-learning topic:datasets language:Python",
-      "fetchedAt": "2026-11-17T12:22:37.517Z",
+      "fetchedAt": "2026-11-18T12:08:47.872Z",
       "provenance": "github",
       "stale": false,
       "score": 32,
