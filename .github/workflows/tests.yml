@@ -1,5 +1,10 @@
 name: Verify mathematics and CLI
-on: [push, pull_request]
+# Pushes verify main only; pull requests (from this repository or forks) are
+# verified by the pull_request event, so a PR branch update runs once.
+on:
+  push:
+    branches: [main]
+  pull_request:
 permissions:
   contents: read
 jobs:
