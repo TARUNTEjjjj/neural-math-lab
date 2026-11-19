@@ -17,7 +17,8 @@ from .datasets import _bounded_real, standardize
 # A finite, JSON-safe threshold that predicts class 0 even for a score of 1.
 ABOVE_ONE = float(np.nextafter(1.0, np.inf))
 MAX_COST = 1_000_000.0
-TIE_BREAK = "lowest cost, then closest to 0.5, then higher threshold"
+TIE_BREAK = ("lowest cost, then closest to 0.5 within each equal-decision interval, "
+             "then higher threshold")
 # A few float64 rounding steps must not choose between mathematically tied
 # costs or symmetric distances. No absolute floor: zero still beats any
 # positive cost, including costs much smaller than machine epsilon.
@@ -69,23 +70,33 @@ def _count_document(samples, tp, fp, tn, fn, threshold, fp_cost, fn_cost):
 def select_threshold(y, p, fp_cost=1.0, fn_cost=1.0):
     """Minimize empirical cost on the supplied validation rows in O(N log N).
 
-    Enumerate distinct scores plus 0.5 and an above-one sentinel. With the rule
-    ``p >= threshold``, this includes all distinct classification patterns,
-    including all-positive and all-negative. Cost ties prefer the candidate
-    closest to 0.5, then the higher threshold. Costs and distances within eight
-    float64 epsilons of their respective minimum (relative, no absolute floor)
-    are tied. This is a deterministic convention, not a claim that the selected
-    threshold generalizes to another population.
+    With the rule ``p >= threshold``, the thresholds in [0, ABOVE_ONE] fall
+    into finitely many intervals, each making one set of validation decisions:
+    (next lower distinct score, score] for each distinct score (from 0 for the
+    lowest), and (highest score, ABOVE_ONE] for the all-negative rule. Each
+    interval is represented by its float64 threshold closest to 0.5: 0.5 itself
+    when the interval contains it (0.5 is always a candidate), the interval's
+    upper end when it lies below 0.5, and the smallest float above its lower
+    end when it lies above 0.5. Cost ties prefer the candidate closest to 0.5,
+    then the higher threshold. Costs and distances within eight float64
+    epsilons of their respective minimum (relative, no absolute floor) are
+    tied. This is a deterministic convention, not a claim that the selected
+    threshold generalizes to another population. docs/threshold-ties.md
+    records why distance is measured this way.
 
-    Distance is measured at the candidate itself. A score is the highest
-    threshold giving its pattern, so a pattern above 0.5 is measured at its far
-    end: a tie can pick a lower threshold although a non-candidate threshold
-    with the same validation decisions lies closer to 0.5 (for example,
-    y=[1,0,1,0] and p=[.9,.52,.3,.1] select 0.3, not a value in (0.52, 0.9]).
+    For example, y=[1,0,1,0] and p=[.9,.52,.3,.1] tie at one mistake for the
+    intervals (0.52, 0.9] and (0.1, 0.3]. They are represented by
+    nextafter(0.52) and 0.3, so the selected threshold is
+    0.5200000000000001, which predicts only the 0.9 row positive.
     """
     y, p = _scores(y, p)
     fp_cost, fn_cost = _cost(fp_cost, "fp_cost"), _cost(fn_cost, "fn_cost")
-    thresholds, tps, fps = _rank_counts(y, p)
+    upper, tps, fps = _rank_counts(y, p)
+    # The interval below each upper end starts at the next lower distinct
+    # score; the lowest interval starts at 0. An interval entirely above 0.5 is
+    # represented by its smallest threshold, which is still above that score.
+    lower = np.r_[upper[1:], -np.inf]
+    thresholds = np.where(lower >= 0.5, np.nextafter(lower, np.inf), upper)
     positives, negatives = int(y.sum()), int(len(y) - y.sum())
     candidates = [(float(t), int(tp), int(fp)) for t, tp, fp in zip(thresholds, tps, fps)]
     if not np.any(thresholds == 0.5):

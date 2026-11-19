@@ -134,7 +134,7 @@
     "bin_count": 10,
     "network": {
       "threshold_selection": {
-        "threshold": 0.6830711918697014,
+        "threshold": 0.5304050535298335,
         "fp_cost": 1.0,
         "fn_cost": 1.0,
         "samples": 120,
@@ -155,10 +155,10 @@
         "total_cost": 1.0,
         "mean_cost": 0.008333333333333333,
         "candidate_count": 122,
-        "tie_break": "lowest cost, then closest to 0.5, then higher threshold"
+        "tie_break": "lowest cost, then closest to 0.5 within each equal-decision interval, then higher threshold"
       },
       "validation": {
-        "threshold": 0.6830711918697014,
+        "threshold": 0.5304050535298335,
         "fp_cost": 1.0,
         "fn_cost": 1.0,
         "samples": 120,
@@ -190,32 +190,32 @@
         "ece": 0.04010633722211177
       },
       "test": {
-        "threshold": 0.6830711918697014,
+        "threshold": 0.5304050535298335,
         "fp_cost": 1.0,
         "fn_cost": 1.0,
         "samples": 120,
         "tp": 59,
-        "fp": 1,
-        "tn": 59,
+        "fp": 3,
+        "tn": 57,
         "fn": 1,
         "confusion_matrix": [
           [
-            59,
-            1
+            57,
+            3
           ],
           [
             1,
             59
           ]
         ],
-        "total_cost": 2.0,
-        "mean_cost": 0.016666666666666666,
-        "accuracy": 0.9833333333333333,
-        "precision": 0.9833333333333333,
+        "total_cost": 4.0,
+        "mean_cost": 0.03333333333333333,
+        "accuracy": 0.9666666666666667,
+        "precision": 0.9516129032258065,
         "recall": 0.9833333333333333,
-        "specificity": 0.9833333333333333,
-        "f1": 0.9833333333333333,
-        "predicted_positive": 60,
+        "specificity": 0.95,
+        "f1": 0.9672131147540983,
+        "predicted_positive": 62,
         "brier": 0.018007547426967255,
         "roc_auc": 0.9975,
         "average_precision": 0.9974656822195581,
@@ -245,7 +245,7 @@
         "total_cost": 16.0,
         "mean_cost": 0.13333333333333333,
         "candidate_count": 122,
-        "tie_break": "lowest cost, then closest to 0.5, then higher threshold"
+        "tie_break": "lowest cost, then closest to 0.5 within each equal-decision interval, then higher threshold"
       },
       "validation": {
         "threshold": 0.5,

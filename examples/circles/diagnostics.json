@@ -25,7 +25,7 @@
       "total_cost": 4.0,
       "mean_cost": 0.03333333333333333,
       "candidate_count": 122,
-      "tie_break": "lowest cost, then closest to 0.5, then higher threshold"
+      "tie_break": "lowest cost, then closest to 0.5 within each equal-decision interval, then higher threshold"
     },
     "validation_predictions": [
       {
@@ -4277,7 +4277,7 @@
       "total_cost": 36.0,
       "mean_cost": 0.3,
       "candidate_count": 122,
-      "tie_break": "lowest cost, then closest to 0.5, then higher threshold"
+      "tie_break": "lowest cost, then closest to 0.5 within each equal-decision interval, then higher threshold"
     },
     "validation_predictions": [
       {

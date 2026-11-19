@@ -1,8 +1,9 @@
 """Independent counts, pairwise ranking, bin arithmetic, and chain-rule checks."""
 
+from fractions import Fraction
 import json
-from decimal import Decimal
 import math
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -16,8 +17,42 @@ from neural_math_lab.diagnostics import (
 from neural_math_lab.experiment import run_experiment
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
 def column(values):
     return np.asarray(values, dtype=np.float64).reshape(-1, 1)
+
+
+def above(value):
+    """The smallest float64 threshold greater than value."""
+    return float(np.nextafter(value, np.inf))
+
+
+def exhaustive_threshold(labels, scores, fp_cost, fn_cost):
+    """Independent oracle for the documented rule (docs/threshold-ties.md).
+
+    Every equal-decision interval's threshold closest to 0.5 is one of 0, 0.5,
+    a score, or the smallest float above a score (ABOVE_ONE above a score of
+    1). Try them all with exact integer costs and exact rational distances;
+    the nearest member of each interval wins automatically. Distances within
+    the documented relative tolerance of the minimum tie, and ties take the
+    higher threshold.
+    """
+    labels, scores = [int(v) for v in labels], [float(v) for v in scores]
+    trial = {0.0, .5, ABOVE_ONE} | set(scores) | {above(score) for score in scores}
+
+    def cost(threshold):
+        fp = sum(y == 0 and score >= threshold for y, score in zip(labels, scores))
+        fn = sum(y == 1 and score < threshold for y, score in zip(labels, scores))
+        return fp_cost * fp + fn_cost * fn
+
+    lowest = min(cost(t) for t in trial)
+    tied = [t for t in trial if cost(t) == lowest]
+    distance = {t: abs(Fraction(t) - Fraction(1, 2)) for t in tied}
+    nearest = min(distance.values())
+    tolerance = Fraction(8) * Fraction(np.finfo(np.float64).eps)
+    return max(t for t in tied if distance[t] - nearest <= tolerance * nearest), lowest
 
 
 class BinaryDiagnosticTests(unittest.TestCase):
@@ -164,25 +199,27 @@ class ThresholdTests(unittest.TestCase):
 
     def test_selection_matches_independent_exhaustive_predictions(self):
         rng = np.random.default_rng(141)
-        for _ in range(40):
-            labels = rng.integers(0, 2, 20)
-            scores = rng.integers(0, 11, 20) / 10
+        for case in range(300):
+            size = int(rng.integers(1, 21))
+            labels = rng.integers(0, 2, size)
+            # Coarse grids force tied scores, exact 0.5 and both endpoints;
+            # the third grid adds scores one float64 step from 0.5.
+            grid = (np.arange(11) / 10, np.arange(21) / 20,
+                    np.array([0., .25, above(.5), .5, float(np.nextafter(.5, 0)), .75, 1.]))[case % 3]
+            scores = rng.choice(grid, size)
             fp_cost, fn_cost = float(rng.integers(1, 9)), float(rng.integers(1, 9))
-            candidates = set(scores.tolist() + [.5, ABOVE_ONE])
-            def key(threshold):
-                fp = sum(y == 0 and score >= threshold for y, score in zip(labels, scores))
-                fn = sum(y == 1 and score < threshold for y, score in zip(labels, scores))
-                # Decimal arithmetic is an independent oracle for these decimal
-                # fixtures; binary subtraction must not decide symmetric ties.
-                return (fp_cost * fp + fn_cost * fn,
-                        abs(Decimal(str(threshold)) - Decimal('.5')), -threshold)
-            expected = min(candidates, key=key)
-            result = select_threshold(column(labels), column(scores), fp_cost, fn_cost)
-            self.assertEqual(result["threshold"], expected)
-            self.assertEqual(result["total_cost"], key(expected)[0])
-            self.assertEqual(result["candidate_count"], len(candidates))
+            expected, total = exhaustive_threshold(labels, scores, fp_cost, fn_cost)
+            with self.subTest(labels=labels.tolist(), scores=scores.tolist(), costs=(fp_cost, fn_cost)):
+                result = select_threshold(column(labels), column(scores), fp_cost, fn_cost)
+                self.assertEqual(result["threshold"], expected)
+                self.assertEqual(result["total_cost"], total)
+                self.assertEqual(result["candidate_count"], len(set(scores.tolist())) + 1 + (.5 not in scores))
+                # The frozen threshold reproduces the counts it reports.
+                again = evaluate_binary(column(labels), column(scores), result["threshold"], fp_cost, fn_cost)
+                self.assertEqual((again["fp"], again["fn"]), (result["fp"], result["fn"]))
 
     def test_endpoint_candidates_allow_predicting_none_or_everyone(self):
+        # Only scores of exactly 1 need the sentinel to predict no positives.
         all_negative = select_threshold(column([0, 0]), column([1, 1]))
         self.assertEqual(all_negative["threshold"], ABOVE_ONE)
         self.assertEqual(all_negative["total_cost"], 0)
@@ -190,6 +227,16 @@ class ThresholdTests(unittest.TestCase):
         self.assertEqual(all_positive["threshold"], 0)
         self.assertEqual(all_positive["total_cost"], 0)
         json.dumps([all_negative, all_positive], allow_nan=False)
+
+    def test_all_negative_rule_uses_its_threshold_closest_to_half(self):
+        # Every threshold above the highest score predicts no validation
+        # positives. That interval is (0.6, ABOVE_ONE] here, nearest 0.5 just
+        # above 0.6; for highest score 0.3 it contains 0.5 itself.
+        for scores, expected in (([.6, .6], above(.6)), ([.3, .3], .5), ([1., .2], ABOVE_ONE)):
+            with self.subTest(scores=scores):
+                result = select_threshold(column([0, 0]), column(scores))
+                self.assertEqual(result["threshold"], expected)
+                self.assertEqual((result["tp"], result["fp"], result["total_cost"]), (0, 0, 0))
 
     def test_cost_scaling_preserves_selected_rule(self):
         y, p = column([0, 1, 0, 1]), column([.1, .4, .4, .9])
@@ -209,35 +256,63 @@ class ThresholdTests(unittest.TestCase):
                     self.assertEqual(result["threshold"], .5)
                     self.assertEqual((result["fp"], result["fn"]), (3, 0))
 
-    def test_equidistant_decimal_thresholds_prefer_higher_candidate(self):
-        # Both candidate thresholds make one mistake and are 0.3 away from 0.5.
-        result = select_threshold(column([1, 0, 1]), column([.2, .6, .8]))
-        self.assertEqual(result["threshold"], .8)
+    def test_equidistant_decimal_thresholds_prefer_higher_threshold(self):
+        # Rules (0.1, 0.3] and (0.7, 0.9] each make one mistake. Their nearest
+        # thresholds, 0.3 and the float just above 0.7, are both 0.2 from 0.5
+        # up to roundoff, so the higher one wins.
+        result = select_threshold(column([1, 0, 1, 0]), column([.9, .7, .3, .1]))
+        self.assertEqual(result["threshold"], above(.7))
+        self.assertEqual((result["fp"], result["fn"]), (0, 1))
 
-    def test_cost_ties_measure_distance_at_the_candidate_scores(self):
-        # The documented convention (README, docs/decision-mathematics.md):
-        # p >= 0.9 and p >= 0.3 both cost 1 and are 0.4 and 0.2 from 0.5.
-        # A threshold of 0.53 makes the same validation decisions as 0.9 and
-        # is only 0.03 from 0.5, but it is not a candidate.
+    def test_cost_ties_measure_distance_within_equal_decision_intervals(self):
+        # The four-row example in docs/threshold-ties.md (issue #12). The rules
+        # (0.52, 0.9] and (0.1, 0.3] both cost 1. Their thresholds nearest 0.5
+        # are the float just above 0.52 (0.02 away) and 0.3 (0.2 away).
         y, p = column([1, 0, 1, 0]), column([.9, .52, .3, .1])
         result = select_threshold(y, p)
-        self.assertEqual(result["threshold"], .3)
-        self.assertEqual((result["fp"], result["fn"], result["total_cost"]), (1, 0, 1.0))
-        same_as_top = evaluate_binary(y, p, .53)
-        self.assertEqual((same_as_top["fp"], same_as_top["fn"]), (0, 1))
-        self.assertEqual(same_as_top["confusion_matrix"], evaluate_binary(y, p, .9)["confusion_matrix"])
+        self.assertEqual(result["threshold"], above(.52))
+        self.assertEqual(result["threshold"], 0.5200000000000001)
+        self.assertEqual((result["tp"], result["fp"], result["fn"], result["total_cost"]), (1, 0, 1, 1.0))
+        # Four score intervals, the all-negative interval and 0.5.
+        self.assertEqual(result["candidate_count"], 6)
+        # Every threshold in (0.52, 0.9] makes the same validation decisions;
+        # 0.52 itself does not, and the previous rule's 0.3 is farther away.
+        for same in (above(.52), .53, .9):
+            self.assertEqual(evaluate_binary(y, p, same)["confusion_matrix"], result["confusion_matrix"])
+        self.assertNotEqual(evaluate_binary(y, p, .52)["confusion_matrix"], result["confusion_matrix"])
+        self.assertEqual(evaluate_binary(y, p, .3)["total_cost"], result["total_cost"])
+
+    def test_exact_half_is_a_threshold_only_when_its_interval_contains_it(self):
+        # A score of exactly 0.5 is predicted positive at threshold 0.5. When
+        # the best rule excludes it, the nearest threshold is just above 0.5.
+        includes = select_threshold(column([1, 0]), column([.5, .2]))
+        self.assertEqual((includes["threshold"], includes["total_cost"]), (.5, 0))
+        excludes = select_threshold(column([0, 1]), column([.5, .8]))
+        self.assertEqual((excludes["threshold"], excludes["total_cost"]), (above(.5), 0))
+        self.assertEqual(excludes["fp"], 0)
+
+    def test_tied_scores_enter_together_at_the_nearest_threshold(self):
+        # The two rows scored 0.6 are on both sides of the label boundary. No
+        # threshold separates them; rule (0.1, 0.6] contains 0.5 and ties on
+        # cost with rule (0.6, 0.9], so exact 0.5 wins.
+        y, p = column([1, 0, 1, 0]), column([.9, .6, .6, .1])
+        for ids in ([0, 1, 2, 3], [3, 2, 1, 0], [2, 0, 3, 1]):
+            with self.subTest(ids=ids):
+                result = select_threshold(y[ids], p[ids])
+                self.assertEqual(result["threshold"], .5)
+                self.assertEqual((result["tp"], result["fp"], result["fn"]), (2, 1, 0))
 
     def test_genuinely_different_costs_are_not_rounded_into_ties(self):
         # A small but resolvable advantage still beats proximity to 0.5.
         result = select_threshold(column([1, 0, 0, 0, 1]),
                                   column([.5, .5, .5, .5, .9]), .1, .3 - 1e-12)
-        self.assertEqual(result["threshold"], .9)
+        self.assertEqual(result["threshold"], above(.5))
 
     def test_zero_cost_beats_tiny_positive_cost_without_absolute_tolerance(self):
         for cost in (1e-200, float(np.nextafter(0., 1.))):
             with self.subTest(cost=cost):
                 result = select_threshold(column([0, 1]), column([.6, .8]), cost, cost)
-                self.assertEqual(result["threshold"], .8)
+                self.assertEqual(result["threshold"], above(.6))
                 self.assertEqual(result["total_cost"], 0)
 
     def test_exact_half_remains_closest_despite_adjacent_float_threshold(self):
@@ -253,6 +328,34 @@ class ThresholdTests(unittest.TestCase):
             result = select_threshold(labels[ids], scores[ids], 1,
                                       1 + 12 * np.finfo(np.float64).eps)
             self.assertEqual(result["threshold"], .3)
+
+
+    def test_recorded_examples_follow_the_selection_rule(self):
+        # The committed reports must show what the current rule selects from
+        # their own saved validation scores, and the frozen test counts that
+        # follow from it (docs/threshold-ties.md).
+        for dataset in ("moons", "circles"):
+            folder = ROOT / "examples" / dataset
+            diagnostics = json.loads((folder / "diagnostics.json").read_text(encoding="utf-8"))
+            experiment = json.loads((folder / "experiment.json").read_text(encoding="utf-8"))
+            self.assertEqual(experiment["diagnostics"], diagnostics)
+            test_rows = {row["id"]: row for row in experiment["test_predictions"]}
+            for model in ("network", "baseline"):
+                with self.subTest(dataset=dataset, model=model):
+                    item = diagnostics[model]
+                    saved = item["threshold_selection"]
+                    rows = item["validation_predictions"]
+                    y, p = column([r["target"] for r in rows]), column([r["p"] for r in rows])
+                    self.assertEqual(select_threshold(y, p, saved["fp_cost"], saved["fn_cost"]), saved)
+                    self.assertEqual(evaluate_binary(y, p, saved["threshold"], saved["fp_cost"],
+                                                     saved["fn_cost"], bins=10), item["validation"])
+                    self.assertEqual(item["test"]["threshold"], saved["threshold"])
+                    if model == "network":
+                        ids = experiment["data"]["test_idx"]
+                        test = evaluate_binary(column([test_rows[i]["target"] for i in ids]),
+                                               column([test_rows[i]["p"] for i in ids]),
+                                               saved["threshold"], saved["fp_cost"], saved["fn_cost"], bins=10)
+                        self.assertEqual(test, item["test"])
 
 
 class InputSensitivityTests(unittest.TestCase):
