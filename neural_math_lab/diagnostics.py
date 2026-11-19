@@ -95,8 +95,12 @@ def select_threshold(y, p, fp_cost=1.0, fn_cost=1.0):
     # The interval below each upper end starts at the next lower distinct
     # score; the lowest interval starts at 0. An interval entirely above 0.5 is
     # represented by its smallest threshold, which is still above that score.
+    # Step only from lower ends at or above 0.5: stepping up from 0 would
+    # underflow, which strict NumPy error settings turn into an exception.
     lower = np.r_[upper[1:], -np.inf]
-    thresholds = np.where(lower >= 0.5, np.nextafter(lower, np.inf), upper)
+    above_half = lower >= 0.5
+    thresholds = upper.copy()
+    thresholds[above_half] = np.nextafter(lower[above_half], np.inf)
     positives, negatives = int(y.sum()), int(len(y) - y.sum())
     candidates = [(float(t), int(tp), int(fp)) for t, tp, fp in zip(thresholds, tps, fps)]
     if not np.any(thresholds == 0.5):

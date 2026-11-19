@@ -291,6 +291,15 @@ class ThresholdTests(unittest.TestCase):
         self.assertEqual((excludes["threshold"], excludes["total_cost"]), (above(.5), 0))
         self.assertEqual(excludes["fp"], 0)
 
+    def test_selection_is_valid_under_strict_numpy_settings(self):
+        # Scores of 0 and the smallest subnormal sit below 0.5, so no float
+        # step is taken from them and nothing underflows.
+        with np.errstate(all="raise"):
+            for labels, scores, expected in (([1, 0], [1., 5e-324], .5), ([0], [1.], ABOVE_ONE),
+                                             ([0, 1, 0], [0., .9, .7], above(.7))):
+                with self.subTest(scores=scores):
+                    self.assertEqual(select_threshold(column(labels), column(scores))["threshold"], expected)
+
     def test_tied_scores_enter_together_at_the_nearest_threshold(self):
         # The two rows scored 0.6 are on both sides of the label boundary. No
         # threshold separates them; rule (0.1, 0.6] contains 0.5 and ties on

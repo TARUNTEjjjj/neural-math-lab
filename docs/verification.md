@@ -7,11 +7,12 @@ now measure distance from 0.5 at each equal-decision interval's threshold
 nearest 0.5, and that threshold is frozen. Checked on macOS arm64 with Python
 3.9.6, NumPy 2.0.2, Matplotlib 3.9.4 and Node.js 26.
 
-- The full suite passed **213 Python tests** and **71 Node.js tests**, and
+- The full suite passed **214 Python tests** and **71 Node.js tests**, and
   `npm run build` succeeded. New threshold tests cover the four-row example,
   exact 0.5 on both sides, tied scores, both endpoints, the all-negative rule,
-  equidistant thresholds and an exact-rational oracle on 300 seeded fixtures.
-  With the previous selection code, 8 of these tests fail.
+  equidistant thresholds, strict NumPy error settings and an exact-rational
+  oracle on 300 seeded fixtures.
+  With the previous selection code, 9 of these tests fail.
 - The committed examples were not retrained. Their thresholds were reselected
   from the exact validation scores saved in `diagnostics.json`, after checking
   that those scores reproduce every saved validation and network test summary
