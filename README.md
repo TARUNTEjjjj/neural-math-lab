@@ -179,7 +179,7 @@ Node.js 22 or newer is required for the website build checks. Run `npm ci --igno
 
 Tests cover independently computed derivatives, numerical stability, optimizer arithmetic, regularization gradients, split disjointness, training-only scaling, test-data isolation, best-checkpoint restoration, JSON pipeline round trips, real CLI runs, report artifacts, and browser/Python prediction agreement. The central-difference gradient checks calculate their reference values from perturbed losses rather than reusing backpropagation.
 
-GitHub Actions is configured to run on Linux with Python 3.9, 3.12, and 3.15 and Node.js 22, 24, and 26, and on macOS with Python 3.15 and Node.js 26. A separate Linux job runs the Python tests with the oldest accepted NumPy (1.26.0) and Matplotlib (3.7.0). The workflow also builds the website and exercises report generation from an installed package outside the source checkout. See [verification notes](docs/verification.md) and the workflow run for the exact commit's observed results.
+GitHub Actions verifies every pull request and every push to `main` (other branch pushes are verified through their pull request, so each update runs once). It is configured to run on Linux with Python 3.9, 3.12, and 3.15 and Node.js 22, 24, and 26, and on macOS with Python 3.15 and Node.js 26. A separate Linux job runs the Python tests with the oldest accepted NumPy (1.26.0) and Matplotlib (3.7.0). The workflow also builds the website and exercises report generation from an installed package outside the source checkout. See [verification notes](docs/verification.md) and the workflow run for the exact commit's observed results.
 
 ## Read the source
 
@@ -216,7 +216,7 @@ npm run build
 npx wrangler pages deploy dist --project-name neural-math-lab --branch main
 ```
 
-`scripts/build-site.cjs` uses an explicit allowlist and creates `dist/`: a learning home, three reports, eight linked maths/exercise guides, pre-rendered equations with local fonts, and a real 404 page. Report runtime bytes and embedded experiment data are preserved. Never deploy the repository root or entire `examples/` directory. The build requires no Cloudflare credentials; publishing uses Wrangler's authenticated session. This is a Direct Upload Pages project: GitHub pushes run verification but do not automatically publish. Repeat the build and deploy command to update the live site.
+`scripts/build-site.cjs` uses an explicit allowlist and creates `dist/`: a learning home, three reports, eight linked maths/exercise guides, pre-rendered equations with local fonts, and a real 404 page. Report runtime bytes and embedded experiment data are preserved. Never deploy the repository root or entire `examples/` directory. The build requires no Cloudflare credentials; publishing uses Wrangler's authenticated session. This is a Direct Upload Pages project: Pushes to `main` and pull requests run verification but do not automatically publish. Repeat the build and deploy command to update the live site.
 
 The hosted build shares content-hashed JavaScript, CSS and WOFF2 fonts across pages. These assets have immutable browser caching; HTML still revalidates so deployments stay fresh. Scripts retain their exact tested bytes, use integrity checks, and load after parsing. The downloadable example reports remain self-contained.
 
