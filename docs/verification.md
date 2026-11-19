@@ -1,5 +1,35 @@
 # Release verification
 
+## Threshold-tie distance — 19 November 2026
+
+Issue #12 is decided in [the decision record](threshold-ties.md): cost ties
+now measure distance from 0.5 at each equal-decision interval's threshold
+nearest 0.5, and that threshold is frozen. Checked on macOS arm64 with Python
+3.9.6, NumPy 2.0.2, Matplotlib 3.9.4 and Node.js 26.
+
+- The full suite passed **214 Python tests** and **71 Node.js tests**, and
+  `npm run build` succeeded. New threshold tests cover the four-row example,
+  exact 0.5 on both sides, tied scores, both endpoints, the all-negative rule,
+  equidistant thresholds, strict NumPy error settings and an exact-rational
+  oracle on 300 seeded fixtures.
+  With the previous selection code, 9 of these tests fail.
+- The committed examples were not retrained. Their thresholds were reselected
+  from the exact validation scores saved in `diagnostics.json`, after checking
+  that those scores reproduce every saved validation and network test summary
+  exactly. Only the moons network's selection changes: 0.6830711918697014
+  becomes 0.5304050535298335, one float step above a validation score.
+  Validation decisions stay the same (FP 0, FN 1). The frozen held-out result
+  changes from FP 1 / FN 1 (mean cost 0.016667) to FP 3 / FN 1 (0.033333);
+  `diagnostics.json`, `metrics.json`, `experiment.json` and the report's
+  embedded data and tables were updated together. The moons baseline and both
+  circles selections are unchanged; their records only gain the new
+  `tie_break` description. The report sentence describing the candidates was
+  updated in the template and both reports.
+- `scripts/threshold_tie_study.py` compared both rules on 20 seeds each of
+  moons and circles at equal and 3x false-negative costs. In 18 of 80
+  selections they froze different thresholds; held-out cost was lower with
+  the new rule in 10, higher in 2 (both the committed seed 7) and equal in 6.
+
 ## Code review fixes — 15 November 2026
 
 These fixes come from a code review of the package, the browser runtimes, the

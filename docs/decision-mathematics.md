@@ -84,24 +84,35 @@ smallest score already represents an all-positive rule. Equal scores must
 enter together; their row order cannot decide which class they receive.
 
 The implementation also includes 0.5 as a candidate. It minimizes cost up to
-floating-point roundoff, then breaks cost ties by choosing the candidate
+floating-point roundoff, then breaks cost ties by choosing the threshold
 closest to 0.5, then the higher
 threshold if both distance and cost tie. This is a reproducible convention,
 not a claim that 0.5 has special optimality. The search is exhaustive over the
 validation decision patterns; it cannot promise the best threshold on new data.
 
-The distance is measured at the candidates themselves. A score candidate $s$
-stands for every threshold above the next lower distinct score (or from 0, for
-the lowest score) up to and including $s$: all of them make the same
-validation decisions, and $s$ is the highest. For a rule below 0.5, $s$ is the
-end of that range nearest 0.5; for a rule above 0.5, it is the farthest end. A
-tie between rules on opposite sides of 0.5 can therefore select the lower
-threshold even when an equal-cost threshold above 0.5 lies closer. With labels
-$[1,0,1,0]$, scores $[0.9,0.52,0.3,0.1]$ and equal costs, candidates 0.9 and
-0.3 both cost $1/4$, and the convention selects 0.3. A threshold of 0.53 makes
-the same validation decisions as 0.9 and is only 0.03 from 0.5, but it is not
-a candidate. Validation cost cannot tell such thresholds apart, yet test rows
-with scores between them are classified differently.
+Each distinct score $s$ stands for an interval of thresholds: every threshold
+above the next lower distinct score (or from 0, for the lowest score) up to
+and including $s$ makes the same validation decisions. The all-negative rule's
+interval runs from just above the highest score to the sentinel described
+below. Validation cost cannot tell thresholds in one interval apart, yet test
+rows with scores inside it are classified differently. The distance from 0.5
+is therefore measured at each interval's float64 threshold nearest 0.5, and
+that threshold is the one frozen:
+
+- an interval containing 0.5 is represented by 0.5;
+- an interval below 0.5 by its upper end, the score $s$;
+- an interval above 0.5 by the smallest float above its lower end, for example
+  `np.nextafter(0.52, np.inf)`, which is `0.5200000000000001`.
+
+With labels $[1,0,1,0]$, scores $[0.9,0.52,0.3,0.1]$ and equal costs, the rules
+$p\geq0.9$ and $p\geq0.3$ both cost $1/4$. Every threshold in $(0.52,0.9]$
+makes the same decisions as 0.9, and the nearest to 0.5 is
+`0.5200000000000001`, only about 0.02 away. The rule $p\geq0.3$ is 0.2 away, so
+the lab selects `0.5200000000000001`. A report prints this exact value: the
+rule excludes a score of 0.52 even though the value rounds to 0.52. An earlier
+version measured distance at the score 0.9 and selected 0.3. The
+repository's decision record, `docs/threshold-ties.md`, compares both rules
+and explains the choice, including held-out results across seeds.
 
 Computers represent these numbers in binary floating point: `3 * 0.1` can be
 slightly greater than `0.3`, and `0.5 - 0.2` can differ from `0.8 - 0.5`.
@@ -114,11 +125,16 @@ threshold of 0.5 beats an adjacent float when costs tie. Differences beyond
 this roundoff tolerance still determine the winner. Recorded costs retain their
 computed values; the tie tolerance affects selection, not cost calculation.
 
-For the all-negative rule, the stored threshold is `np.nextafter(1.0, np.inf)`:
-the smallest representable float64 number above 1. This finite sentinel is
-approximately `1.0000000000000002`. It includes scores that round to exactly 1,
+The all-negative rule's interval ends at `np.nextafter(1.0, np.inf)`: the
+smallest representable float64 number above 1. This finite sentinel is
+approximately `1.0000000000000002`. It excludes scores that are exactly 1,
 unlike a threshold of 1, and stays valid JSON. Interpret it as **predict none
-positive**, not as a probability greater than 1.
+positive**, not as a probability greater than 1. Like every interval, the
+all-negative rule is frozen at its threshold nearest 0.5: 0.5 when every
+validation score is below 0.5, just above the highest score otherwise, and the
+sentinel itself only when the highest score is exactly 1. Validation rows are
+all predicted negative in each case; a held-out row scored above every
+validation row is predicted positive unless the sentinel was frozen.
 
 ### A complete four-row example
 
