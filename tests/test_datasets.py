@@ -150,6 +150,17 @@ class StandardizationTests(unittest.TestCase):
                         self.assertLessEqual(abs(scale[0, j] - expected_scale),
                                              4 * np.spacing(expected_scale))
 
+    def test_mean_is_correctly_rounded_when_the_fsum_remainder_is_inexact(self):
+        # The exact sum lies just below a rounding tie. Its one-step fsum
+        # remainder, 2**-53 - 2**-200, rounds to 2**-53, which would put
+        # total + remainder exactly on the tie and round the mean up.
+        column = np.array([1 + 2.0 ** -52, 2.0 ** -53, -2.0 ** -200, 0.])
+        training = np.column_stack((column, [0., 1., 2., 3.]))
+        mean, _ = fit_standardizer(training)
+        exact_mean, _ = self.exact_moments(column)
+        self.assertEqual(mean[0, 0], float(exact_mean))
+        self.assertEqual(mean[0, 0], (1 + 2.0 ** -52) / 4)
+
     def test_evaluation_rows_use_frozen_training_statistics(self):
         training = np.array([[1., 2.], [3., 6.]])
         mean, scale = fit_standardizer(training)

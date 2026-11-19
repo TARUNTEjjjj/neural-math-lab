@@ -80,15 +80,22 @@ def _column_moments(column):
     """Return an accurate mean and population standard deviation.
 
     ``math.fsum`` keeps a large common offset from absorbing small,
-    representable differences. The rounded sum plus its remainder is divided
-    by n as an exact rational, so the mean is correctly rounded. The variance
-    then uses the corrected two-pass formula sum(d^2)/n - (sum(d)/n)^2 on the
-    deviations d from that mean.
+    representable differences. Each fsum result is subtracted and the rest
+    summed again until nothing remains, so the parts add up to the exact sum
+    (a single remainder can itself be rounded, which would double-round the
+    mean). Dividing that exact rational by n makes the mean correctly rounded.
+    The variance then uses the corrected two-pass formula
+    sum(d^2)/n - (sum(d)/n)^2 on the deviations d from that mean.
     """
     n = len(column)
-    total = math.fsum(column)
-    remainder = math.fsum(np.append(column, -total))
-    mean = float((Fraction(total) + Fraction(remainder)) / n)
+    exact_sum = Fraction(0)
+    terms = column
+    part = math.fsum(terms)
+    while part != 0:
+        exact_sum += Fraction(part)
+        terms = np.append(terms, -part)
+        part = math.fsum(terms)
+    mean = float(exact_sum / n)
     deviations = column - mean
     residual = math.fsum(deviations) / n
     variance = math.fsum(deviations * deviations) / n - residual * residual
