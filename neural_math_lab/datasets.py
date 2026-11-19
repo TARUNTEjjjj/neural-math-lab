@@ -1,5 +1,7 @@
 """Small synthetic classification problems with auditable data boundaries."""
 
+import math
+from fractions import Fraction
 from numbers import Real
 
 import numpy as np
@@ -74,16 +76,36 @@ def stratified_split(y, seed=7):
     return {name: rng.permutation(np.concatenate(parts)) for name, parts in groups.items()}
 
 
+def _column_moments(column):
+    """Return an accurate mean and population standard deviation.
+
+    ``math.fsum`` keeps a large common offset from absorbing small,
+    representable differences. The rounded sum plus its remainder is divided
+    by n as an exact rational, so the mean is correctly rounded. The variance
+    then uses the corrected two-pass formula sum(d^2)/n - (sum(d)/n)^2 on the
+    deviations d from that mean.
+    """
+    n = len(column)
+    total = math.fsum(column)
+    remainder = math.fsum(np.append(column, -total))
+    mean = float((Fraction(total) + Fraction(remainder)) / n)
+    deviations = column - mean
+    residual = math.fsum(deviations) / n
+    variance = math.fsum(deviations * deviations) / n - residual * residual
+    return mean, math.sqrt(max(variance, 0.0))
+
+
 def fit_standardizer(X_train):
     """Compute population moments from training examples only."""
     X_train = _inputs(X_train)
     # Tiny deviations may underflow when squared; only overflow is an error.
     with np.errstate(over="raise", invalid="raise", under="ignore"):
         try:
-            mean = X_train.mean(axis=0, keepdims=True)
-            scale = X_train.std(axis=0, keepdims=True)
-        except FloatingPointError as exc:
+            moments = [_column_moments(X_train[:, j]) for j in range(X_train.shape[1])]
+        except (FloatingPointError, OverflowError) as exc:
             raise ValueError("Training coordinates are too large to standardize.") from exc
+    mean = np.array([[m for m, _ in moments]], dtype=np.float64)
+    scale = np.array([[s for _, s in moments]], dtype=np.float64)
     constant = X_train.max(axis=0, keepdims=True) == X_train.min(axis=0, keepdims=True)
     scale = np.where(constant | (scale == 0), 1.0, scale)
     if not np.isfinite(mean).all() or not np.isfinite(scale).all():

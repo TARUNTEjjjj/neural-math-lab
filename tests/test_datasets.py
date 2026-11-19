@@ -2,6 +2,7 @@
 
 import math
 import unittest
+from fractions import Fraction
 
 import numpy as np
 
@@ -108,6 +109,46 @@ class StandardizationTests(unittest.TestCase):
         np.testing.assert_allclose(standardize(training, mean, scale)[:, 0], [0, 0, 0], atol=1e-14)
         actual = standardize([[0.2, 2.]], mean, scale)
         np.testing.assert_allclose(actual, [[0.2 - mean[0, 0], 0.]], atol=1e-14)
+
+    @staticmethod
+    def exact_moments(column):
+        """Population mean and variance of the float64 values, in exact rationals."""
+        values = [Fraction(float(value)) for value in column]
+        mean = sum(values) / len(values)
+        return mean, sum((value - mean) ** 2 for value in values) / len(values)
+
+    def test_large_common_offset_keeps_exact_mean_and_population_scale(self):
+        offsets = np.array([0, 0, 0, 0, 2, 2, 4, 8], dtype=np.float64)
+        training = np.column_stack((1e16 + offsets, offsets))
+        mean, scale = fit_standardizer(training)
+        for j in range(2):
+            exact_mean, exact_variance = self.exact_moments(training[:, j])
+            with self.subTest(column=j):
+                self.assertEqual(Fraction(mean[0, j]), exact_mean)
+                self.assertEqual(exact_variance, 7)
+                self.assertEqual(scale[0, j], math.sqrt(float(exact_variance)))
+        self.assertEqual(mean[0, 0], 10000000000000002.)
+        np.testing.assert_array_equal(scale[:, 0], scale[:, 1])
+        transformed = standardize(training, mean, scale)
+        np.testing.assert_allclose(transformed[:, 0], transformed[:, 1], rtol=0, atol=1e-15)
+        np.testing.assert_allclose(transformed.mean(axis=0), [0., 0.], rtol=0, atol=1e-15)
+        np.testing.assert_allclose(transformed.std(axis=0), [1., 1.], rtol=0, atol=1e-15)
+
+    def test_moments_match_exact_rationals_across_offsets_and_magnitudes(self):
+        rng = np.random.default_rng(13)
+        for offset in (0., -3.5e9, 1e12, 2.5e15, -1e16, 1e17):
+            for spread in (1e-3, 1., 250.):
+                training = offset + spread * rng.integers(-40, 41, size=(37, 2)).astype(np.float64)
+                if np.any(training.max(axis=0) == training.min(axis=0)):
+                    continue
+                mean, scale = fit_standardizer(training)
+                for j in range(2):
+                    exact_mean, exact_variance = self.exact_moments(training[:, j])
+                    with self.subTest(offset=offset, spread=spread, column=j):
+                        self.assertEqual(mean[0, j], float(exact_mean))
+                        expected_scale = math.sqrt(float(exact_variance))
+                        self.assertLessEqual(abs(scale[0, j] - expected_scale),
+                                             4 * np.spacing(expected_scale))
 
     def test_evaluation_rows_use_frozen_training_statistics(self):
         training = np.array([[1., 2.], [3., 6.]])
