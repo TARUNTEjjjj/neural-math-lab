@@ -142,7 +142,18 @@ function buildSite(output = path.join(ROOT, "dist")) {
     write(relative, content); return "/" + relative;
   }
   const siteStyle = publishAsset("site", "css", fs.readFileSync(path.join(ROOT, "site/site.css")));
-  function withSharedStyle(html) { return html.replaceAll('href="/site.css"', `href="${siteStyle}"`); }
+  const siteScript = publishAsset(
+    "site",
+    "js",
+    Buffer.concat([
+      fs.readFileSync(path.join(ROOT, "site/site3d-math.js")),
+      Buffer.from("\n"),
+      fs.readFileSync(path.join(ROOT, "site/site3d.js")),
+    ]),
+  );
+  function withSharedStyle(html) {
+    return html.replaceAll('href="/site.css"', `href="${siteStyle}"`).replaceAll('src="/site.js"', `src="${siteScript}"`);
+  }
   const home = fs.readFileSync(path.join(ROOT, "site/index.html"), "utf8");
   write("index.html", withSharedStyle(home.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${CSP}">`)));
   for (const name of ["moons", "circles", "xor"]) {
