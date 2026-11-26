@@ -11,3 +11,37 @@
 @media(max-width:800px){.site-header{padding:18px 24px;flex-wrap:wrap;gap:10px}.site-nav{gap:0 23px;flex-basis:100%}.site-nav a{font-size:12px}.site-main{padding:0 24px}.home-hero{grid-template-columns:1fr;gap:30px;padding:38px 0}.hero-copy{max-width:680px}h1{font-size:clamp(42px,7vw,60px)}.network-figure{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;padding:20px}.figure-heading{grid-column:1/-1}.network-diagram{grid-row:2/4;margin:10px 0 0}.figure-equation{align-self:end;border:0;padding:15px 0 0}.network-figure figcaption{margin-top:10px;align-self:start}.section-title{display:block}.section-title>p{max-width:60ch;margin-top:15px}.experiment-grid{grid-template-columns:1fr}.experiment-card{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:0 25px;padding:22px 25px}.card-topline,.experiment-card h3,.experiment-card>p{grid-column:1}.experiment-card h3{margin-top:10px}.experiment-card .pattern{grid-column:2;grid-row:1/4;align-self:center;margin:0}.experiment-card .card-link,.experiment-card small{grid-column:1/-1}.experiment-card p{margin-bottom:15px}.gradient-feature{grid-template-columns:1fr;gap:28px}.gradient-notes{padding:25px 0 0;border-left:0;border-top:1px solid #52756a}.gradient-notes .big-equation{font-size:34px}.gradient-feature p{max-width:none}.learning-grid{grid-template-columns:1fr;gap:0}.scope-panel{margin-bottom:30px}.site-footer{padding:0 24px 30px;flex-wrap:wrap;gap:12px 25px}.lesson-layout{grid-template-columns:1fr;padding-top:30px}.lesson-content{max-width:none}.lesson-sidebar{position:static}.lesson-sidebar nav{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 24px}.lesson-sidebar .button{width:fit-content}}
 @media(max-width:480px){.site-header{padding:16px 18px}.site-brand{font-size:17px}.brand-symbol{width:36px;height:40px;font-size:29px}.site-brand small{font-size:7px}.site-nav{gap:0 18px}.site-nav a{font-size:11px}.site-main{padding:0 18px}h1{font-size:42px;letter-spacing:-.05em}.hero-lead{font-size:15px}.hero-actions{align-items:start;flex-direction:column;gap:15px}.quiet-facts{gap:10px 17px;font-size:9px}.network-figure{display:block;padding:19px}.figure-equation{border-top:1px solid #ccd8c6}.figure-equation code{font-size:11px}.network-diagram{max-height:220px;margin:12px 0}.home-section{padding:22px 0 28px}.section-title h2{font-size:28px}.experiment-card{display:flex;padding:22px}.experiment-card .pattern{height:95px;margin:8px auto 0}.experiment-card h3{margin-top:18px}.gradient-feature{padding:26px 23px;margin-top:15px;border-radius:12px}.gradient-feature h2{font-size:31px}.gradient-notes .big-equation{font-size:28px}.learning-card{gap:14px;padding:23px 0}.learning-card h3{font-size:18px}.lesson-links{gap:4px 18px}.scope-panel{gap:16px;padding:26px 0}.scope-symbol{font-size:33px}.scope-panel h2{font-size:18px}.site-footer{padding:0 18px 28px;flex-direction:column;align-items:start;gap:8px}.lesson-content{font-size:14px}.lesson-content h1{font-size:35px}.lesson-content h2{font-size:23px}.lesson-content pre{font-size:11px;padding:14px}.lesson-content table{font-size:11px}.lesson-content th,.lesson-content td{padding:9px}.lesson-sidebar nav{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){:root{scroll-behavior:auto}}@media print{.site-header,.site-nav,.skip-link,.site-footer,.lesson-sidebar{display:none}.site-main{max-width:none;padding:0}.lesson-layout{display:block;padding:0}.lesson-content{max-width:none}.lesson-content pre{white-space:pre-wrap;overflow-wrap:anywhere}.home-hero{padding-top:0}.gradient-feature{background:#fff;color:var(--ink);border:1px solid #ccc}.gradient-feature p,.gradient-feature .eyebrow,.gradient-notes .big-equation,.gradient-notes li,.gradient-notes li span{color:var(--ink)}a{color:inherit}.button{background:#fff;color:var(--ink)}}
+
+/* Interactive 3D Neural Manifold Studio & GPU Motion */
+.nml3d-studio{margin:28px 0;background:linear-gradient(135deg,#eaf0e4 0%,#f4f5ef 60%,#e5ece3 100%);border:1px solid #d0dbce;border-radius:18px;padding:24px}
+.nml3d-shell{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:24px;align-items:center}
+.nml3d-stage-col{display:grid;gap:12px;min-width:0}
+.nml3d-stage{position:relative;width:100%;aspect-ratio:16/10;min-height:240px;border-radius:14px;background:#0f2624;border:1px solid #2b4c47;overflow:hidden;cursor:grab;touch-action:none}
+.nml3d-stage.is-dragging{cursor:grabbing}
+.nml3d-stage:focus,.nml3d-stage:focus-visible{outline:3px solid #d36838;outline-offset:-3px}
+#nml3d-canvas{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none}
+.nml3d-hud{position:absolute;top:12px;left:12px;right:12px;z-index:2;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;pointer-events:none}
+.nml3d-pill{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:rgba(13,34,32,.92);color:#eef4ea;border:1px solid rgba(255,255,255,.18);font-size:11px;font-weight:650}
+.nml3d-hint{position:absolute;right:12px;bottom:10px;z-index:2;padding:4px 10px;border-radius:999px;background:rgba(13,34,32,.92);color:#e7efe4;border:1px solid rgba(255,255,255,.16);font-size:11px;pointer-events:none}
+.nml3d-toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
+.nml3d-group{display:flex;flex-wrap:wrap;gap:6px}
+.nml3d-btn,.nml3d-chip{border:1px solid #b9cdc1;background:#fff;color:#193e3b;border-radius:999px;padding:8px 13px;min-height:36px;font-size:12px;font-weight:650;cursor:pointer}
+.nml3d-btn.is-icon{min-width:36px;padding:8px 10px}
+.nml3d-btn[aria-pressed="true"],.nml3d-chip[aria-pressed="true"]{background:#193e3b;border-color:#193e3b;color:#f4f5ef}
+.nml3d-copy{display:grid;gap:12px;min-width:0}
+.nml3d-copy h2{margin:0}
+.nml3d-copy p{margin:0}
+.nml3d-presets{display:flex;flex-wrap:wrap;gap:8px}
+.nml3d-slider-label{display:block;font-size:12px;font-weight:650;color:#274744}
+.nml3d-slider-label input{display:block;width:100%;margin-top:6px;accent-color:#087f78}
+.nml3d-formula{margin:0;padding:10px 12px;background:#fff;border:1px solid #cdd8cb;border-radius:8px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:#193e3b;overflow-wrap:anywhere;white-space:pre-wrap}
+.nml3d-readout{font-size:12px;font-weight:600;color:#2c4a46;overflow-wrap:anywhere}
+@media(prefers-reduced-motion:no-preference){
+  .tilt-3d{position:relative;transform-style:preserve-3d;transform:perspective(960px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform 200ms cubic-bezier(.22,1,.36,1),box-shadow 200ms ease}
+  .tilt-3d::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:var(--sheen,0);background:radial-gradient(260px circle at var(--mx,50%) var(--my,50%),rgba(255,255,255,.35),transparent 70%);transition:opacity 180ms ease}
+  .nml3d-btn,.nml3d-chip{transition:transform 160ms ease,background-color 160ms ease,color 160ms ease}
+  .nml3d-btn:active,.nml3d-chip:active{transform:scale(.97)}
+}
+@media(max-width:900px){.nml3d-shell{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:480px){.nml3d-studio{padding:15px}.nml3d-stage{min-height:205px;aspect-ratio:4/3}}
+@media(prefers-reduced-motion:reduce){.tilt-3d,.tilt-3d::after,.nml3d-btn,.nml3d-chip{transition:none!important;transform:none!important;animation:none!important}}

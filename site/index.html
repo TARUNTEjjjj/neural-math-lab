@@ -8,6 +8,7 @@
   <title>Neural Math Lab · Understand the learning</title>
   <link rel="stylesheet" href="/site.css">
 <script type="module" src="/resources/background.mjs"></script>
+<script defer src="/site.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -46,6 +47,49 @@
         <article class="experiment-card"><div class="card-topline"><span class="eyebrow">THE FOUNDATION</span><span class="card-number">01</span></div><div class="pattern xor-pattern" aria-hidden="true"><span>0</span><span>1</span><span>1</span><span>0</span></div><h3>Four points. One useful lesson.</h3><p>Meet XOR. Follow the actual weights, activations, and outputs of a tiny network, with the chain rule close at hand.</p><a class="card-link" href="/labs/xor/">Explore XOR <span aria-hidden="true">↗</span></a><small>Recorded introduction · training truth table</small></article>
         <article class="experiment-card featured"><div class="card-topline"><span class="eyebrow">START EXPLORING</span><span class="card-number">02</span></div><svg class="pattern" viewBox="0 0 200 100" role="presentation" aria-hidden="true"><path d="M20 35C20 93 110 93 110 35" fill="none" stroke="#087f78" stroke-width="15" stroke-dasharray="1 19" stroke-linecap="round"/><path d="M90 65C90 7 180 7 180 65" fill="none" stroke="#b96a46" stroke-width="15" stroke-dasharray="1 19" stroke-linecap="round"/></svg><h3>A boundary that bends.</h3><p>Replay the moons experiment. Inspect predictions, compare a linear baseline, and take your first temporary gradient step.</p><a class="card-link" href="/labs/moons/">Explore moons <span aria-hidden="true">↗</span></a><small>Interactive · replay, decisions & gradients</small></article>
         <article class="experiment-card"><div class="card-topline"><span class="eyebrow">TEST YOUR INTUITION</span><span class="card-number">03</span></div><svg class="pattern" viewBox="0 0 200 100" role="presentation" aria-hidden="true"><circle cx="100" cy="50" r="37" fill="none" stroke="#b96a46" stroke-width="9" stroke-dasharray="1 14" stroke-linecap="round"/><circle cx="100" cy="50" r="17" fill="none" stroke="#087f78" stroke-width="9" stroke-dasharray="1 14" stroke-linecap="round"/></svg><h3>When a straight line won’t do.</h3><p>Explore concentric classes and see what hidden neurons add. Check whether a better fit carries over to held-out examples.</p><a class="card-link" href="/labs/circles/">Explore circles <span aria-hidden="true">↗</span></a><small>Interactive · replay, decisions & gradients</small></article>
+      </div>
+    </section>
+
+    <section id="manifold-studio" class="nml3d-studio" aria-labelledby="nml3d-title">
+      <div class="nml3d-shell">
+        <div class="nml3d-stage-col">
+          <div class="nml3d-stage" tabindex="0" role="group" aria-label="Interactive 3D neural manifold canvas. Drag or press Arrow keys to orbit, plus or minus to zoom, Space to pause.">
+            <canvas id="nml3d-canvas" width="640" height="390" aria-hidden="true"></canvas>
+            <div class="nml3d-hud">
+              <span class="nml3d-pill" id="nml3d-renderer">WebGL2 3D</span>
+              <span class="nml3d-pill" id="nml3d-motion-state">Live flow</span>
+            </div>
+            <span class="nml3d-hint">Drag or Arrows to orbit · + / − zoom</span>
+          </div>
+          <div class="nml3d-toolbar">
+            <div class="nml3d-group" role="group" aria-label="3D visualization mode">
+              <button type="button" class="nml3d-btn" data-nml-mode="landscape" aria-pressed="true">Loss surface</button>
+              <button type="button" class="nml3d-btn" data-nml-mode="manifold" aria-pressed="false">3D manifold</button>
+              <button type="button" class="nml3d-btn" data-nml-mode="network" aria-pressed="false">3D graph</button>
+            </div>
+            <div class="nml3d-group" role="group" aria-label="Camera controls">
+              <button type="button" class="nml3d-btn is-icon" data-nml-action="zoom-in" aria-label="Zoom in 3D view">+</button>
+              <button type="button" class="nml3d-btn is-icon" data-nml-action="zoom-out" aria-label="Zoom out 3D view">−</button>
+              <button type="button" class="nml3d-btn" data-nml-action="reset">Reset</button>
+              <button type="button" class="nml3d-btn" id="nml3d-pause" data-nml-action="pause" aria-pressed="false">Pause 3D</button>
+            </div>
+          </div>
+        </div>
+        <div class="nml3d-copy">
+          <p class="eyebrow">01B / INTERACTIVE 3D MANIFOLD STUDIO</p>
+          <h2 id="nml3d-title">Non-Convex Loss Surface &amp; Gradient Flow</h2>
+          <p id="nml3d-desc">Saddle ridges and regularised bowls over parameter coordinates (w₁, w₂) with live −η∇J trajectory.</p>
+          <div class="nml3d-presets" role="group" aria-label="Dataset geometry presets">
+            <button type="button" class="nml3d-chip" data-nml-preset="moons" aria-pressed="true">Moons wave</button>
+            <button type="button" class="nml3d-chip" data-nml-preset="circles" aria-pressed="false">Circles dome</button>
+            <button type="button" class="nml3d-chip" data-nml-preset="xor" aria-pressed="false">XOR saddle</button>
+          </div>
+          <label class="nml3d-slider-label" for="nml3d-rate">Step size / amplitude (<span id="nml3d-rate-value">0.16</span>)
+            <input id="nml3d-rate" type="range" min="0.04" max="0.40" step="0.02" value="0.16">
+          </label>
+          <pre class="nml3d-formula" id="nml3d-formula">w′ = w − η∇J(w) · Hᵢⱼ = ∂²J/∂wᵢ∂wⱼ</pre>
+          <p class="nml3d-readout" id="nml3d-readout" aria-live="polite">Initializing 3D tensor surface…</p>
+        </div>
       </div>
     </section>
 
